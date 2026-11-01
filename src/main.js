@@ -4,7 +4,9 @@ import { Road, SHOULDER } from './road.js';
 import { buildScenery, disposeGroup } from './scenery.js';
 import { Traffic } from './traffic.js';
 import { Player } from './vehicle.js';
-import { makeTaxi, makeShadowTexture, cloud as cloudGeo } from './models.js';
+import { makeVehicle, makeShadowTexture, cloud as cloudGeo } from './models.js';
+import { VEHICLES, STRIPES, loadCfg, saveCfg } from './garage.js';
+import { setCapacity } from './data.js';
 import { Input } from './input.js';
 import { Sound } from './audio.js';
 import { Sky, Rain, Clouds, Mountains, skyState, makeSkyState } from './sky.js';
@@ -58,22 +60,60 @@ scene.add(rain.group);
 const skySt = makeSkyState();
 const WHITE = new THREE.Color('#ffffff');
 
-const taxi = makeTaxi();
-taxi.group.rotation.order = 'YXZ';
-scene.add(taxi.group);
-taxi.group.traverse((o) => { if (o.isMesh) o.castShadow = SHADOWS; });
+// véhicule du joueur, reconstruit à chaque passage au garage
+let garageCfg = loadCfg();
+let taxi = null;
 const shadow = new THREE.Mesh(
   new THREE.PlaneGeometry(2.6, 5.4).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false }),
 );
 shadow.position.y = 0.05;
-shadow.castShadow = false;
 shadow.visible = !SHADOWS;
-taxi.group.add(shadow);
 const headlight = new THREE.SpotLight('#fff2cc', 0, 95, 0.55, 0.6, 1.1);
 headlight.position.set(0, 1.0, 2.2);
 headlight.target.position.set(0, 0, 30);
-taxi.group.add(headlight, headlight.target);
+function vehicleCfg(cfg) {
+  const st = STRIPES[cfg.stripe] || STRIPES[0];
+  return { model: cfg.model, body: cfg.body, s1: st[1], s2: st[2], rims: cfg.rims, rack: cfg.model === 'berline' ? cfg.rack : true, slogan: cfg.slogan, plate: cfg.plate };
+}
+function buildTaxi(cfg) {
+  const old = taxi;
+  if (old) {
+    scene.remove(old.group);
+    old.group.remove(shadow, headlight, headlight.target);
+    old.group.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && o.material.map) { o.material.map.dispose(); o.material.dispose(); }
+    });
+  }
+  taxi = makeVehicle(vehicleCfg(cfg));
+  taxi.group.rotation.order = 'YXZ';
+  taxi.group.traverse((o) => { if (o.isMesh) o.castShadow = SHADOWS; });
+  taxi.group.add(shadow, headlight, headlight.target);
+  if (old) { taxi.group.position.copy(old.group.position); taxi.group.rotation.copy(old.group.rotation); }
+  scene.add(taxi.group);
+  const spec = VEHICLES[cfg.model];
+  setCapacity(spec);
+  player.len = spec.len; player.wid = spec.wid;
+}
+
+// showroom du garage : plateau tournant, sol d'atelier, éclairage de studio
+const showroom = new THREE.Group();
+{
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(80, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#2b2824' }));
+  floor.receiveShadow = true;
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.8, 0.22, 48), new THREE.MeshPhongMaterial({ color: '#3a3733', shininess: 40 }));
+  plate.position.y = 0.11; plate.receiveShadow = true;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(4.7, 0.06, 6, 64).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#f4c430' }));
+  ring.position.y = 0.23;
+  const key = new THREE.SpotLight('#fff3dd', 220, 40, 0.6, 0.6, 1.6);
+  key.position.set(6, 12, 8);
+  const rim = new THREE.SpotLight('#9fc4ff', 140, 40, 0.7, 0.6, 1.6);
+  rim.position.set(-8, 7, -9);
+  showroom.add(floor, plate, ring, key, key.target, rim, rim.target);
+  showroom.visible = false;
+  scene.add(showroom);
+}
 
 const post = isTouch ? null : makeComposer(renderer, scene, camera);
 function resize() {
@@ -109,8 +149,8 @@ function newRun() {
   const weathers = STAGES.map((_, i) => weatherFor(rng, i));
   weathers[0] = 'clear';
   return {
-    seed, rng, weathers, stage: 0, reached: 0,
-    money: 12000, fuel: 26, hp: 100, passengers: [], bags: 0, hour: 6.7,
+    seed, rng, weathers, stage: 0, reached: 0, vehicle: VEHICLES[garageCfg.model], cfg: { ...garageCfg },
+    money: 12000, fuel: Math.round(VEHICLES[garageCfg.model].tank * 0.52), hp: 100, passengers: [], bags: 0, hour: 6.7,
     stats: { carried: 0, tips: 0, fines: 0, crashes: 0 },
     stageTime: 0, stageLog: [],
   };
@@ -347,12 +387,27 @@ function updateDrive(dt) {
 
 /* ------------------------------------------------------------ transitions */
 function startTitle() {
+  buildTaxi(garageCfg);
   run = newRun();
   loadStage(0);
   state = 'title';
   UI.hud(false);
-  UI.renderTitle({ best: loadBest(), onStart: () => { sound.init(); openGare(); } });
+  UI.renderTitle({ best: loadBest(), vehicle: VEHICLES[garageCfg.model].name, onStart: () => { sound.init(); openGare(); }, onGarage: openGarage });
   UI.show('s-title');
+}
+
+function openGarage() {
+  sound.init();
+  state = 'garage';
+  let draft = { ...garageCfg };
+  const render = () => UI.renderGarage({
+    cfg: draft,
+    onChange: (c) => { draft = c; buildTaxi(draft); render(); },
+    onSave: (c) => { garageCfg = c; saveCfg(c); sound.ok(); startTitle(); },
+    onCancel: () => { buildTaxi(garageCfg); startTitle(); },
+  });
+  render();
+  UI.show('s-garage');
 }
 
 function openGare() {
@@ -537,7 +592,7 @@ function endGame(win, reason) {
 
 /* ------------------------------------------------------------ clavier global */
 input.on('Enter', () => {
-  const btn = { title: '#t-start', gare: '#g-go', arrival: '#a-next', end: '#e-restart' }[state];
+  const btn = { title: '#t-start', gare: '#g-go', arrival: '#a-next', end: '#e-restart', garage: '#g-save' }[state];
   if (btn && !document.querySelector('.screen.modal.on')) document.querySelector(btn)?.click();
 });
 input.on('KeyP', () => setPause(!paused));
@@ -563,7 +618,19 @@ const camLook = new THREE.Vector3();
 let orbitA = 0.6;
 const _g = new THREE.Vector3();
 
+let turntable = 0;
 function placeTaxi() {
+  const inGarage = state === 'garage';
+  showroom.visible = inGarage;
+  world.group.visible = !inGarage;
+  if (inGarage) {
+    turntable += lastDt * 0.35;
+    showroom.position.set(0, -400, 0);
+    taxi.group.position.set(0, -399.78, 0);
+    taxi.group.rotation.set(0, turntable, 0);
+    taxi.body.position.y = 0; taxi.body.rotation.set(0, 0, 0);
+    return;
+  }
   const r = world.road;
   const f = r.sample(player.s);
   r.toWorld(player.s, player.x, taxi.group.position);
@@ -577,6 +644,7 @@ function placeTaxi() {
   taxi.body.rotation.z = player.roll;
   for (const w of taxi.wheels) w.rotation.x = player.wheelRot;
   taxi.goat.visible = run.passengers.some((p) => TRAITS[p.trait].goat);
+  taxi.heads.count = Math.min(taxi.heads.instanceMatrix.count, 1 + run.passengers.length);
   taxi.bags.forEach((b, i) => { b.visible = i < run.bags - (taxi.goat.visible ? 1 : 0); });
 }
 
@@ -602,10 +670,17 @@ function updateCamera(dt) {
     camera.lookAt(camLook);
     const fov = (portrait ? 72 : 58) + Math.min(14, Math.abs(player.v) * 0.4);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
+  } else if (state === 'garage') {
+    const narrow = camera.aspect < 0.9;
+    desired.set(narrow ? 0 : 2.6, -400 + (narrow ? 3.6 : 2.3), narrow ? 11 : 8.6);
+    camera.position.lerp(desired, 1 - Math.exp(-dt * 4));
+    lookT.set(narrow ? 0 : 3.1, -399 + (narrow ? -0.4 : 0.1), 0);
+    camLook.lerp(lookT, 1 - Math.exp(-dt * 6));
+    camera.lookAt(camLook);
   } else {
     orbitA += dt * 0.1;
-    const R = state === 'title' ? 9.5 : 8.5;
-    desired.set(pos.x + Math.sin(orbitA) * R, pos.y + 3.2, pos.z + Math.cos(orbitA) * R);
+    const R = state === 'title' ? 9.5 : state === 'garage' ? 6.8 : 8.5;
+    desired.set(pos.x + Math.sin(orbitA) * R, pos.y + (state === 'garage' ? 2.2 : 3.2), pos.z + Math.cos(orbitA) * R);
     camera.position.lerp(desired, 1 - Math.exp(-dt * 3));
     lookT.copy(pos);
     lookT.y += 1.2;

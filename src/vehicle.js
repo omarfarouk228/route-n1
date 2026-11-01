@@ -17,10 +17,11 @@ export class Player {
   update(dt, road, input, run, weather) {
     const f = road.sample(this.s);
     const load = run.passengers.length * 70 + run.bags * 28;
+    const V = run.vehicle;
     const loadF = load / (SEATS * 70 + ROOF * 28);
-    const mass = 1350 + load;
+    const mass = V.mass + load;
     const wet = weather === 'rain';
-    const grip = wet ? 0.82 : 1;
+    const grip = (wet ? 0.82 : 1) * V.grip;
     const ev = { hardBrake: false, wall: 0, lat: 0, surface: 0 };
 
     // direction
@@ -36,7 +37,7 @@ export class Player {
     const fuelOk = run.fuel > 0;
     const thr = input.gas && fuelOk ? 1 : 0;
     this.throttle += (thr - this.throttle) * Math.min(1, dt * 5);
-    let F = this.throttle * 4300 * Math.max(0, 1 - Math.max(0, this.v) / 37);
+    let F = this.throttle * V.power * Math.max(0, 1 - Math.max(0, this.v) / V.vmax);
     F -= 0.85 * this.v * Math.abs(this.v) + 22 * this.v;
     if (!thr && this.v > 0) F -= 150 * Math.min(this.v, 8) + 250; // frein moteur
     F -= mass * 9.81 * f.grade;
@@ -78,7 +79,7 @@ export class Player {
     if (this.s < -40) { this.s = -40; this.v = Math.max(0, this.v); }
 
     // carburant
-    const lpm = 0.0034 * (1 + loadF * 0.55) * (0.45 + 0.55 * this.throttle) + Math.max(0, f.grade) * 0.025 * this.throttle;
+    const lpm = 0.0034 * V.fuel * (1 + loadF * 0.55) * (0.45 + 0.55 * this.throttle) + Math.max(0, f.grade) * 0.025 * this.throttle;
     run.fuel = Math.max(0, run.fuel - lpm * Math.abs(this.v) * dt - (input.gas ? 0.002 * dt : 0.0004 * dt));
 
     // ressentis

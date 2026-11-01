@@ -1,5 +1,6 @@
 import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, TOTAL_KM, WEATHER_LABEL, traitLabel } from './data.js';
 import { fmtMoney, fmtClock, fmtDuration, clamp } from './util.js';
+import { VEHICLES, PALETTE, STRIPES, RIMS, SLOGANS, cleanText } from './garage.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -66,7 +67,7 @@ export function updateHud(d) {
 }
 
 /* ------------------------------------------------------------ titre */
-export function renderTitle({ best, onStart }) {
+export function renderTitle({ best, onStart, onGarage, vehicle }) {
   const el = $('#s-title');
   const strip = CITIES.map((c) => `<span>${esc(c.name)}</span>`).join('<i></i>');
   el.innerHTML = `
@@ -77,8 +78,9 @@ export function renderTitle({ best, onStart }) {
       <div class="route-strip">${strip}</div>
       <div class="title-actions">
         <button class="btn" id="t-start">Ouvrir la gare de Lomé <span class="kbd">Entrée</span></button>
+        <button class="btn ghost" id="t-garage">Garage</button>
       </div>
-      <div class="title-meta">${best ? `<span>Record : <b>${fmtMoney(best.money)}</b> à ${esc(CITIES[best.reached].name)}</span>` : '<span>Pas encore de record. À toi de l’ouvrir.</span>'}<span>Gratuit · PC et mobile</span></div>
+      <div class="title-meta">${best ? `<span>Record : <b>${fmtMoney(best.money)}</b> à ${esc(CITIES[best.reached].name)}</span>` : '<span>Pas encore de record. À toi de l’ouvrir.</span>'}<span>Véhicule : <b>${esc(vehicle)}</b></span><span>Gratuit · PC et mobile</span></div>
       <div class="howto">
         <h3>Comment on joue</h3>
         <ul>
@@ -91,6 +93,7 @@ export function renderTitle({ best, onStart }) {
       </div>
     </div>`;
   el.querySelector('#t-start').onclick = onStart;
+  el.querySelector('#t-garage').onclick = onGarage;
 }
 
 /* ------------------------------------------------------------ gare routière */
@@ -264,4 +267,57 @@ export function renderRescue({ money, onPay, onGiveUp }) {
     </div></div>`;
   if (can) el.querySelector('#m-pay').onclick = onPay;
   el.querySelector('#m-quit').onclick = onGiveUp;
+}
+
+/* ------------------------------------------------------------ garage */
+export function renderGarage({ cfg, onChange, onSave, onCancel }) {
+  const el = $('#s-garage');
+  const V = VEHICLES[cfg.model];
+  const bar = (v, max) => `<div class="bar"><i style="width:${clamp(v / max, 0.05, 1) * 100}%"></i></div>`;
+  const cards = Object.entries(VEHICLES).map(([k, v]) => `
+    <button type="button" class="vcard${k === cfg.model ? ' on' : ''}" data-model="${k}">
+      <span class="eyebrow">${esc(v.tag)}</span>
+      <b>${esc(v.name)}</b>
+      <div class="vstats">
+        <span>Places</span>${bar(v.seats, 12)}
+        <span>Vitesse</span>${bar(v.vmax - 28, 13)}
+        <span>Tenue</span>${bar(v.grip - 0.7, 0.45)}
+        <span>Sobriété</span>${bar(2 - v.fuel, 1.25)}
+      </div>
+    </button>`).join('');
+  const sw = (list, cur, key) => list.map(([n, c]) => `<button type="button" class="sw${c === cur ? ' on' : ''}" data-${key}="${c}" title="${esc(n)}" style="--c:${c}" aria-label="${esc(n)}"></button>`).join('');
+  el.innerHTML = `
+    <div class="garage">
+      <div class="garage-head">
+        <div class="eyebrow">Garage · Gbossimé</div>
+        <h2>Ton taxi, ton style</h2>
+        <p>${esc(V.desc)}</p>
+      </div>
+      <div class="card garage-panel">
+        <div class="g-sec"><h3>Véhicule</h3><div class="vcards">${cards}</div></div>
+        <div class="g-sec"><h3>Carrosserie</h3><div class="sws">${sw(PALETTE, cfg.body, 'body')}<label class="sw custom" title="Couleur libre" style="--c:${cfg.body}"><input type="color" id="g-color" value="${cfg.body}" aria-label="Couleur libre">+</label></div></div>
+        <div class="g-sec"><h3>Bandes</h3><div class="chips">${STRIPES.map(([n], i) => `<button type="button" class="chip${i === cfg.stripe ? ' on' : ''}" data-stripe="${i}">${esc(n)}</button>`).join('')}</div></div>
+        <div class="g-sec"><h3>Jantes</h3><div class="sws">${sw(RIMS, cfg.rims, 'rims')}</div></div>
+        ${cfg.model === 'berline' ? `<div class="g-sec"><h3>Galerie de toit</h3><div class="chips"><button type="button" class="chip${cfg.rack ? ' on' : ''}" data-rack="1">Avec galerie</button><button type="button" class="chip${!cfg.rack ? ' on' : ''}" data-rack="0">Sans</button></div></div>` : ''}
+        <div class="g-sec"><h3>Slogan peint</h3>
+          <input class="txt" id="g-slogan" maxlength="22" value="${esc(cfg.slogan)}" placeholder="DIEU EST GRAND" autocomplete="off">
+          <div class="chips">${SLOGANS.map((t) => `<button type="button" class="chip small" data-slogan="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
+        <div class="g-sec"><h3>Plaque</h3><input class="txt" id="g-plate" maxlength="10" value="${esc(cfg.plate)}" autocomplete="off"></div>
+        <div class="g-actions"><button class="btn green" id="g-save">Valider <span class="kbd">Entrée</span></button><button class="btn ghost" id="g-cancel">Annuler</button></div>
+      </div>
+    </div>`;
+  const set = (patch) => onChange({ ...cfg, ...patch });
+  for (const b of el.querySelectorAll('[data-model]')) b.onclick = () => set({ model: b.dataset.model });
+  for (const b of el.querySelectorAll('[data-body]')) b.onclick = () => set({ body: b.dataset.body });
+  for (const b of el.querySelectorAll('[data-rims]')) b.onclick = () => set({ rims: b.dataset.rims });
+  for (const b of el.querySelectorAll('[data-stripe]')) b.onclick = () => set({ stripe: +b.dataset.stripe });
+  for (const b of el.querySelectorAll('[data-rack]')) b.onclick = () => set({ rack: b.dataset.rack === '1' });
+  for (const b of el.querySelectorAll('[data-slogan]')) b.onclick = () => set({ slogan: b.dataset.slogan });
+  el.querySelector('#g-color').oninput = (e) => set({ body: e.target.value });
+  const sl = el.querySelector('#g-slogan'), pl = el.querySelector('#g-plate');
+  sl.onchange = () => set({ slogan: cleanText(sl.value, 22) });
+  pl.onchange = () => set({ plate: cleanText(pl.value, 10) || 'TG' });
+  for (const inp of [sl, pl]) inp.addEventListener('keydown', (e) => e.stopPropagation());
+  el.querySelector('#g-save').onclick = () => onSave({ ...cfg, slogan: cleanText(sl.value, 22), plate: cleanText(pl.value, 10) || 'TG' });
+  el.querySelector('#g-cancel').onclick = onCancel;
 }

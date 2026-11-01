@@ -186,7 +186,7 @@ export class Traffic {
     for (const it of this.items) {
       if (it.cd > 0) continue;
       const ds = it.s - P.s, dx = it.x - P.x;
-      if (Math.abs(ds) < (it.len + 4.5) / 2 && Math.abs(dx) < (it.wid + 1.75) / 2) {
+      if (Math.abs(ds) < (it.len + (P.len || 4.5)) / 2 && Math.abs(dx) < (it.wid + (P.wid || 1.75)) / 2) {
         it.cd = 1.6;
         hits.push(it);
       }

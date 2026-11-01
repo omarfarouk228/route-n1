@@ -122,9 +122,11 @@ export const PRICES = {
   bagLost: 2000,
 };
 
-export const TANK = 50;
-export const SEATS = 7;
-export const ROOF = 6;
+// capacités du véhicule choisi au garage (liaisons vivantes : mises à jour par setCapacity)
+export let TANK = 50;
+export let SEATS = 7;
+export let ROOF = 6;
+export function setCapacity(spec) { TANK = spec.tank; SEATS = spec.seats; ROOF = spec.roof; }
 
 const FEMALE = ['Ama', 'Afi', 'Yawa', 'Sénam', 'Akouvi', 'Dzifa', 'Kafui', 'Tchilalo', 'Pidassa', 'Lardja', 'Fatoumata', 'Aïcha', 'Massama', 'Essi', 'Abla', 'Mawussi'];
 const MALE = ['Kossi', 'Komlan', 'Edem', 'Mawuli', 'Essowè', 'Kpatcha', 'Abalo', 'Yendoubé', 'Moussa', 'Issifou', 'Kodjo', 'Koffi', 'Yao', 'Damipi', 'Sélom', 'Kokou'];

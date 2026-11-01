@@ -10,6 +10,7 @@ const PI = Math.PI;
 function finish(geo, color) {
   if (geo.index) geo = geo.toNonIndexed();
   if (geo.attributes.uv) geo.deleteAttribute('uv');
+  if (color == null) color = '#ffffff';
   _c.set(color);
   const n = geo.attributes.position.count;
   const a = new Float32Array(n * 3);
@@ -608,35 +609,198 @@ const WHEEL_POS = [[0.86, 0.36, 1.45], [-0.86, 0.36, 1.45], [0.86, 0.36, -1.45],
 const BAG_SLOTS = [[-0.4, -1.4], [0.4, -1.4], [-0.4, -0.45], [0.4, -0.45], [-0.4, 0.5], [0.4, 0.5]];
 const BAG_COLORS = ['#3a6ea5', '#d03a2f', '#e9d9b0', '#7b3f99', '#0f7a4a', '#c87a2a'];
 
-export function makeTaxi() {
+const shade = (hex, k) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexString();
+export const GLASS_MAT = new THREE.MeshPhongMaterial({ color: '#1b2730', specular: '#a8b8c8', shininess: 110, transparent: true, opacity: 0.62 });
+
+function textTexture(text, { w = 512, h = 72, bg = null, fg = '#ffffff', stroke = '#1b1a17', font = 'Archivo Black' } = {}) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+  let size = Math.floor(h * 0.72);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  do { g.font = `${size}px "${font}", "Arial Black", Arial, sans-serif`; size -= 2; } while (g.measureText(text).width > w - 24 && size > 10);
+  if (stroke) { g.lineWidth = Math.max(3, size * 0.14); g.strokeStyle = stroke; g.strokeText(text, w / 2, h / 2 + 2); }
+  g.fillStyle = fg; g.fillText(text, w / 2, h / 2 + 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+function plateTexture(text) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 56;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f4f2ea'; g.fillRect(0, 0, 256, 56);
+  g.strokeStyle = '#1b1a17'; g.lineWidth = 4; g.strokeRect(3, 3, 250, 50);
+  // petit drapeau du Togo
+  for (let k = 0; k < 5; k++) { g.fillStyle = k % 2 ? '#ffce00' : '#006a4e'; g.fillRect(10, 10 + k * 7, 26, 7); }
+  g.fillStyle = '#d21034'; g.fillRect(10, 10, 12, 14);
+  g.fillStyle = '#1b1a17'; g.font = 'bold 34px "Archivo", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 146, 30);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Définitions des carrosseries : pièces colorées, vitres, roues, galerie, places
+function vehicleDef(model, o) {
+  const B = o.body, D = shade(B, 0.62), CH = '#cfd2d6', BLK = '#1b1a18';
+  const P = [], G = [];
+  const both = (fn) => { fn(1); fn(-1); };
+  if (model === 'minibus') {
+    P.push(box(2.0, 1.75, 5.2, B, { y: 1.42 }));
+    P.push(box(1.96, 0.62, 0.5, B, { y: 0.86, z: 2.62 }));
+    P.push(box(2.04, 0.12, 5.1, BLK, { y: 0.5 }));
+    G.push(box(2.03, 0.62, 4.0, null, { y: 1.86, z: -0.35 }));
+    G.push(box(1.84, 0.82, 0.06, null, { y: 1.82, z: 2.62, rx: -0.12 }));
+    G.push(box(1.7, 0.6, 0.06, null, { y: 1.85, z: -2.61 }));
+    P.push(box(2.02, 0.1, 5.22, BLK, { y: 1.52 }));
+    if (o.s1) { P.push(box(2.03, 0.18, 5.22, o.s1, { y: 1.1 })); P.push(box(2.03, 0.08, 5.22, o.s2, { y: 1.24 })); }
+    both((x) => P.push(box(0.02, 1.2, 0.03, D, { x: x * 1.005, y: 1.25, z: 0.6 })));
+    P.push(box(1.9, 0.2, 0.16, CH, { y: 0.56, z: 2.88 }));
+    P.push(box(2.0, 0.2, 0.16, CH, { y: 0.56, z: -2.62 }));
+    P.push(box(1.1, 0.3, 0.05, '#222', { y: 0.85, z: 2.88 }));
+    both((x) => { P.push(cyl(0.12, 0.12, 0.05, 10, '#fff6c8', { x: x * 0.7, y: 0.92, z: 2.88, rx: PI / 2 })); P.push(box(0.12, 0.08, 0.05, '#f08a24', { x: x * 0.88, y: 0.72, z: 2.88 })); });
+    both((x) => P.push(box(0.22, 0.3, 0.05, '#c0261a', { x: x * 0.82, y: 1.0, z: -2.62 })));
+    both((x) => { P.push(box(0.2, 0.26, 0.06, D, { x: x * 1.14, y: 1.62, z: 2.35 })); P.push(box(0.12, 0.03, 0.03, BLK, { x: x * 1.04, y: 1.62, z: 2.35 })); });
+    return { P, G, wheels: [[0.92, 0.4, 1.75], [-0.92, 0.4, 1.75], [0.92, 0.4, -1.75], [-0.92, 0.4, -1.75]], wr: 0.4, rackY: 2.31, rackLen: 4.2, rackZ: -0.3, rackW: 1.8,
+      slots: [[-0.45, -1.8], [0.45, -1.8], [-0.45, -0.75], [0.45, -0.75], [-0.45, 0.3], [0.45, 0.3], [-0.45, 1.35], [0.45, 1.35]],
+      seats: [[0.45, 1.75, 1.7], [-0.45, 1.75, 1.7], [0.55, 1.75, 0.6], [0, 1.75, 0.6], [-0.55, 1.75, 0.6], [0.55, 1.75, -0.4], [0, 1.75, -0.4], [-0.55, 1.75, -0.4], [0.55, 1.75, -1.4], [0, 1.75, -1.4], [-0.55, 1.75, -1.4], [0.5, 1.75, -2.2], [-0.5, 1.75, -2.2]],
+      rear: { y: 1.85, z: -2.65, w: 1.6, h: 0.42 }, front: { y: 2.12, z: 2.66, w: 1.7, h: 0.18, rx: -0.12 }, plateZ: -2.71, plateY: 0.75, ladderZ: -2.66, exhaust: -2.6, len: 5.2 };
+  }
+  if (model === 'berline') {
+    P.push(box(1.78, 0.58, 4.4, B, { y: 0.7 }));
+    P.push(box(1.72, 0.12, 1.25, B, { y: 1.02, z: 1.5, rx: 0.07 }));
+    P.push(box(1.72, 0.1, 0.95, B, { y: 1.02, z: -1.7, rx: -0.05 }));
+    P.push(box(1.58, 0.6, 2.15, B, { y: 1.27, z: -0.2 }));
+    P.push(box(1.54, 0.06, 2.0, B, { y: 1.6, z: -0.25 }));
+    P.push(box(1.82, 0.1, 4.2, BLK, { y: 0.44 }));
+    G.push(box(1.61, 0.42, 1.9, null, { y: 1.3, z: -0.22 }));
+    G.push(box(1.48, 0.5, 0.06, null, { y: 1.27, z: 0.95, rx: -0.55 }));
+    G.push(box(1.44, 0.44, 0.06, null, { y: 1.28, z: -1.36, rx: 0.5 }));
+    if (o.s1) { P.push(box(1.8, 0.1, 4.42, o.s1, { y: 0.8 })); P.push(box(1.8, 0.05, 4.42, o.s2, { y: 0.88 })); }
+    both((x) => { P.push(box(0.02, 0.5, 0.03, D, { x: x * 0.895, y: 0.78, z: -0.2 })); P.push(box(0.02, 0.04, 0.14, CH, { x: x * 0.9, y: 0.92, z: 0.4 })); P.push(box(0.02, 0.04, 0.14, CH, { x: x * 0.9, y: 0.92, z: -0.75 })); });
+    P.push(box(1.82, 0.17, 0.14, CH, { y: 0.48, z: 2.22 }));
+    P.push(box(1.82, 0.17, 0.14, CH, { y: 0.48, z: -2.22 }));
+    P.push(box(1.0, 0.24, 0.05, '#222', { y: 0.74, z: 2.21 }));
+    both((x) => { P.push(box(0.36, 0.15, 0.05, '#fff6c8', { x: x * 0.6, y: 0.78, z: 2.21 })); P.push(box(0.32, 0.15, 0.05, '#c0261a', { x: x * 0.62, y: 0.82, z: -2.21 })); });
+    both((x) => P.push(box(0.16, 0.11, 0.06, B, { x: x * 0.95, y: 1.1, z: 0.75 })));
+    P.push(box(0.62, 0.2, 0.26, '#f4c430', { y: 1.72, z: -0.2 }));
+    P.push(box(0.64, 0.05, 0.28, BLK, { y: 1.61, z: -0.2 }));
+    return { P, G, wheels: [[0.84, 0.34, 1.38], [-0.84, 0.34, 1.38], [0.84, 0.34, -1.38], [-0.84, 0.34, -1.38]], wr: 0.34, rackY: 1.64, rackLen: 1.4, rackZ: -0.85, rackW: 1.4,
+      slots: [[-0.35, -0.85], [0.35, -0.85]],
+      seats: [[0.38, 1.3, 0.2], [-0.38, 1.3, 0.2], [0.42, 1.3, -0.75], [0, 1.3, -0.75], [-0.42, 1.3, -0.75]],
+      rear: { y: 1.28, z: -1.4, w: 1.3, h: 0.3, rx: 0.5 }, front: null, plateZ: -2.29, plateY: 0.66, ladderZ: null, exhaust: -2.2, len: 4.4 };
+  }
+  // break (taxi-brousse classique)
+  P.push(box(1.8, 0.6, 4.6, B, { y: 0.74 }));
+  P.push(box(1.74, 0.12, 1.25, B, { y: 1.07, z: 1.65, rx: 0.06 }));
+  P.push(box(1.64, 0.7, 2.95, B, { y: 1.4, z: -0.45 }));
+  P.push(box(1.6, 0.07, 2.9, B, { y: 1.78, z: -0.45 }));
+  P.push(box(1.84, 0.1, 4.4, BLK, { y: 0.45 }));
+  G.push(box(1.67, 0.46, 2.55, null, { y: 1.46, z: -0.52 }));
+  G.push(box(1.5, 0.5, 0.06, null, { y: 1.44, z: 1.02, rx: -0.35 }));
+  G.push(box(1.5, 0.45, 0.06, null, { y: 1.47, z: -1.94 }));
+  if (o.s1) { P.push(box(1.82, 0.12, 4.62, o.s1, { y: 0.86 })); P.push(box(1.82, 0.06, 4.62, o.s2, { y: 0.95 })); }
+  both((x) => {
+    for (const z of [0.25, -0.75, -1.65]) P.push(box(0.02, 0.56, 0.03, D, { x: x * 0.905, y: 0.82, z }));
+    for (const z of [0.05, -0.95]) P.push(box(0.02, 0.04, 0.14, CH, { x: x * 0.91, y: 1.0, z }));
+    P.push(box(0.18, 0.12, 0.06, B, { x: x * 1.0, y: 1.17, z: 0.92 }));
+    P.push(box(0.12, 0.03, 0.03, BLK, { x: x * 0.92, y: 1.15, z: 0.92 }));
+    P.push(box(0.04, 0.32, 0.22, BLK, { x: x * 0.8, y: 0.38, z: -1.85 }));
+    P.push(box(0.04, 0.32, 0.22, BLK, { x: x * 0.8, y: 0.38, z: 1.05 }));
+    P.push(cyl(0.12, 0.12, 0.05, 10, '#fff6c8', { x: x * 0.6, y: 0.82, z: 2.3, rx: PI / 2 }));
+    P.push(box(0.12, 0.08, 0.05, '#f08a24', { x: x * 0.8, y: 0.66, z: 2.3 }));
+    P.push(box(0.26, 0.16, 0.05, '#c0261a', { x: x * 0.66, y: 0.85, z: -2.31 }));
+  });
+  P.push(box(1.86, 0.18, 0.15, CH, { y: 0.5, z: 2.33 }));
+  P.push(box(1.86, 0.18, 0.15, CH, { y: 0.5, z: -2.33 }));
+  P.push(box(0.9, 0.3, 0.05, '#222222', { y: 0.8, z: 2.31 }));
+  P.push(box(0.96, 0.04, 0.06, CH, { y: 0.96, z: 2.31 }));
+  return { P, G, wheels: WHEEL_POS, wr: 0.36, rackY: 1.84, rackLen: 2.7, rackZ: -0.45, rackW: 1.56,
+    slots: BAG_SLOTS, seats: [[0.4, 1.42, 0.45], [-0.4, 1.42, 0.45], [0.5, 1.42, -0.45], [0, 1.42, -0.45], [-0.5, 1.42, -0.45], [0.5, 1.42, -1.35], [0, 1.42, -1.35], [-0.5, 1.42, -1.35]],
+    rear: { y: 1.47, z: -1.98, w: 1.4, h: 0.3 }, front: { y: 1.72, z: 1.1, w: 1.45, h: 0.12, rx: -0.35 }, plateZ: -2.42, plateY: 0.58, ladderZ: -2.32, exhaust: -2.3, len: 4.6 };
+}
+
+// cfg : { model, body, s1, s2, rims, rack, slogan, plate }
+export function makeVehicle(cfg) {
+  const def = vehicleDef(cfg.model, cfg);
   const group = new THREE.Group();
   const body = new THREE.Group();
   group.add(body);
-  body.add(new THREE.Mesh(merge(taxiBodyParts()), MAT));
-  const wg = wheelGeo();
-  const wheels = WHEEL_POS.map(([x, y, z]) => {
+  const parts = [...def.P];
+  // galerie et échelle arrière
+  if (cfg.rack) {
+    const y = def.rackY, L = def.rackLen, z0 = def.rackZ, W = def.rackW;
+    for (const x of [-W / 2, W / 2]) parts.push(box(0.06, 0.06, L, '#2a2a2a', { x, y, z: z0 }));
+    for (let k = 0; k <= 3; k++) parts.push(box(W, 0.05, 0.05, '#2a2a2a', { y, z: z0 - L / 2 + (k * L) / 3 }));
+    for (const x of [-W / 2, W / 2]) for (const z of [z0 - L / 2, z0 + L / 2]) parts.push(box(0.05, 0.14, 0.05, '#2a2a2a', { x, y: y - 0.07, z }));
+    if (def.ladderZ != null) {
+      for (const x of [-0.25, 0.25]) parts.push(box(0.04, y - 0.6, 0.04, '#2a2a2a', { x, y: (y + 0.6) / 2, z: def.ladderZ }));
+      for (let k = 0; k < 4; k++) parts.push(box(0.5, 0.03, 0.03, '#2a2a2a', { y: 0.8 + k * ((y - 0.9) / 4), z: def.ladderZ }));
+    }
+  }
+  parts.push(cyl(0.04, 0.04, 0.3, 6, '#555', { x: -0.55, y: 0.36, z: def.exhaust, rx: PI / 2 }));
+  const bodyMesh = new THREE.Mesh(merge(parts), MAT);
+  body.add(bodyMesh);
+  const glass = new THREE.Mesh(mergeGeometries(def.G.map((g) => { g.deleteAttribute('color'); return g; }), false), GLASS_MAT);
+  body.add(glass);
+  // conducteur et passagers visibles derrière les vitres
+  const headGeo = merge([sph(0.13, '#3b2418', { sy: 1.1 }), box(0.34, 0.3, 0.2, '#6a6a6a', { y: -0.28 })]);
+  const heads = new THREE.InstancedMesh(headGeo, MAT, def.seats.length);
+  const m4 = new THREE.Matrix4();
+  def.seats.forEach(([x, y, z], k) => { m4.makeTranslation(x, y, z); heads.setMatrixAt(k, m4); });
+  heads.count = 1;
+  body.add(heads);
+  // slogan sur la lunette arrière, bandeau de pare-brise, plaques
+  const decal = (tex, w, h, pos, ry = 0, rx = 0) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+    m.position.set(...pos); m.rotation.set(rx, ry, 0, 'YXZ');
+    body.add(m);
+    return m;
+  };
+  if (cfg.slogan) {
+    const r = def.rear;
+    decal(textTexture(cfg.slogan, { fg: '#ffffff', stroke: '#1b1a17' }), r.w, r.h, [0, r.y, r.z - 0.012], Math.PI, r.rx ? -r.rx : 0);
+    if (def.front) {
+      const f = def.front;
+      decal(textTexture(cfg.slogan, { bg: '#0f5c3c', fg: '#f4c430', stroke: null }), f.w, f.h, [0, f.y, f.z + 0.03], 0, f.rx || 0);
+    }
+  }
+  const plate = plateTexture(cfg.plate || 'TG');
+  decal(plate, 0.52, 0.12, [0, def.plateY, def.plateZ], Math.PI);
+  decal(plate, 0.52, 0.12, [0, def.plateY - 0.08, def.len / 2 + 0.09], 0);
+  // roues avec jantes à la couleur choisie
+  const wg = merge([cyl(def.wr, def.wr, 0.26, 12, '#1d1d1d', { rz: PI / 2 }), cyl(def.wr * 0.55, def.wr * 0.55, 0.28, 8, cfg.rims || '#c9ccd0', { rz: PI / 2 }), cyl(def.wr * 0.15, def.wr * 0.15, 0.3, 6, '#3a3a3a', { rz: PI / 2 })]);
+  const wheels = def.wheels.map(([x, y, z]) => {
     const w = new THREE.Mesh(wg, MAT);
     w.position.set(x, y, z);
     group.add(w);
     return w;
   });
-  const bags = BAG_SLOTS.map(([x, z], i) => {
+  // colis sur la galerie (ou dans le coffre de la berline)
+  const bags = def.slots.map(([x, z], i) => {
     const big = i % 3 === 0;
+    const c = BAG_COLORS[i % BAG_COLORS.length];
     const g = big
-      ? merge([cyl(0.33, 0.36, 0.55, 7, BAG_COLORS[i], { y: 0.27 }), box(0.7, 0.04, 0.04, '#222', { y: 0.35 })])
-      : merge([box(0.7, 0.42, 0.8, BAG_COLORS[i], { y: 0.21 }), box(0.72, 0.04, 0.04, '#222', { y: 0.3 })]);
+      ? merge([cyl(0.33, 0.36, 0.55, 8, c, { y: 0.27 }), box(0.7, 0.04, 0.04, '#222', { y: 0.35 })])
+      : merge([box(0.7, 0.42, 0.8, c, { y: 0.21 }), box(0.72, 0.04, 0.04, '#222', { y: 0.3 })]);
     const m = new THREE.Mesh(g, MAT);
-    m.position.set(x, 1.87, z);
+    m.position.set(x, def.rackY + 0.03, z);
     m.visible = false;
     body.add(m);
     return m;
   });
   const goat = new THREE.Mesh(goatGeo('#e8e0d0'), MAT);
-  goat.position.set(0, 1.87, 1.1);
+  goat.position.set(0, def.rackY + 0.03, def.rackZ + def.rackLen / 2 - 0.3);
   goat.scale.setScalar(0.8);
   goat.visible = false;
   body.add(goat);
-  return { group, body, wheels, bags, goat };
+  return { group, body, wheels, bags, goat, heads, len: def.len, rackY: def.rackY };
+}
+export function makeTaxi() {
+  return makeVehicle({ model: 'break', body: '#e9b53a', s1: '#1f7a3a', s2: '#d03a2f', rims: '#c9ccd0', rack: true, slogan: 'DIEU EST GRAND', plate: 'TG 2410 BD' });
 }
 
 export function taxiStatic() {
