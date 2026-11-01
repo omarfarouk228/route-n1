@@ -12,6 +12,7 @@ import { Sound } from './audio.js';
 import { Sky, Rain, Clouds, Mountains, skyState, makeSkyState } from './sky.js';
 import { BIOMES } from './data.js';
 import { makeComposer } from './post.js';
+import { Radio } from './radio.js';
 import * as UI from './ui.js';
 import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
 
@@ -131,6 +132,12 @@ const input = new Input();
 input.bindTouch(document.getElementById('touch'));
 const sound = new Sound();
 const player = new Player();
+const radio = new Radio(sound, UI.radioUI());
+radio.render();
+document.getElementById('r-power').onclick = () => radio.power();
+document.getElementById('r-next').onclick = () => radio.nextStation(1);
+document.getElementById('r-prev').onclick = () => radio.nextStation(-1);
+document.getElementById('r-skip').onclick = () => radio.nextTrack();
 
 let run = null;
 let world = null;
@@ -386,12 +393,25 @@ function updateDrive(dt) {
 }
 
 /* ------------------------------------------------------------ transitions */
+// le HUD et l'autoradio apparaissent ensemble ; le clip YouTube ne joue que lorsqu'il est visible
+let radioStarted = false;
+function hud(on) {
+  UI.hud(on);
+  const yt = radio.current && radio.current.kind === 'yt';
+  if (yt) { try { if (on) radio.yt?.playVideo(); else radio.yt?.pauseVideo(); } catch { /* lecteur pas prêt */ } }
+  if (on && !radioStarted) {
+    radioStarted = true;
+    if (radio.saved && radio.saved.station >= 0) radio.restore();
+    else if (!radio.saved) radio.tune(0);
+  }
+}
+
 function startTitle() {
   buildTaxi(garageCfg);
   run = newRun();
   loadStage(0);
   state = 'title';
-  UI.hud(false);
+  hud(false);
   UI.renderTitle({ best: loadBest(), vehicle: VEHICLES[garageCfg.model].name, onStart: () => { sound.init(); openGare(); }, onGarage: openGarage });
   UI.show('s-title');
 }
@@ -414,7 +434,7 @@ function openGare() {
   state = 'gare';
   if (!world || world.road.index !== run.stage) loadStage(run.stage);
   offers = makeOffers(run.rng, run.stage, run.passengers);
-  UI.hud(false);
+  hud(false);
   UI.clearToasts();
   renderGare();
   UI.show('s-gare');
@@ -455,7 +475,7 @@ function startDrive() {
   player.reset(16, 1.9);
   world.traffic.clearAll();
   UI.show(null);
-  UI.hud(true);
+  hud(true);
   UI.clearToasts();
   const from = CITIES[run.stage].name, to = CITIES[run.stage + 1].name;
   UI.toast(`${from} → ${to}`, 'big', 2600);
@@ -477,7 +497,7 @@ function restartStage() {
 function arrive() {
   state = 'arrival';
   sound.silence();
-  UI.hud(false);
+  hud(false);
   const ci = run.stage + 1;
   const city = CITIES[ci];
   const par = STAGES[run.stage].length / 19;
@@ -550,6 +570,7 @@ function setPause(on) {
       onQuit: () => { UI.modal('s-pause', false); paused = false; endGame(false, { title: 'Voyage abandonné', text: `Tu as garé le taxi à ${CITIES[run.reached].name}.` }); },
     });
   } else if (world.weather === 'rain') sound.rain(true);
+  radio.pause(on);
   UI.modal('s-pause', on);
 }
 
@@ -565,7 +586,7 @@ function endGame(win, reason) {
   state = 'end';
   paused = false;
   sound.silence();
-  UI.hud(false);
+  hud(false);
   UI.clearToasts();
   if (win) sound.coin(); else sound.fail();
   const best = loadBest();
@@ -599,11 +620,15 @@ input.on('KeyP', () => setPause(!paused));
 input.on('Escape', () => setPause(!paused));
 input.on('KeyC', () => { camMode = (camMode + 1) % 3; });
 input.on('KeyM', toggleSound);
+input.on('KeyR', () => { if (state === 'drive') radio.power(); });
+input.on('KeyN', () => { if (state === 'drive') radio.nextTrack(); });
+input.on('KeyT', () => { if (state === 'drive') radio.nextStation(1); });
 document.getElementById('b-pause').onclick = () => setPause(true);
 document.getElementById('b-cam').onclick = () => { camMode = (camMode + 1) % 3; };
 document.getElementById('b-sound').onclick = toggleSound;
 function toggleSound() {
   sound.setMuted(!sound.muted);
+  try { if (sound.muted) radio.yt?.mute(); else radio.yt?.unMute(); } catch { /* lecteur absent */ }
   document.getElementById('b-sound').classList.toggle('off', sound.muted);
 }
 document.getElementById('b-sound').classList.toggle('off', sound.muted);

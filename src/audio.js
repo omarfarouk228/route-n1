@@ -65,7 +65,7 @@ export class Sound {
     this.o1.frequency.setTargetAtTime(f, t, 0.05);
     this.o2.frequency.setTargetAtTime(f * 0.5, t, 0.05);
     this.engFilter.frequency.setTargetAtTime(350 + rpm * 900 + throttle * 500, t, 0.08);
-    this.engGain.gain.setTargetAtTime(on ? 0.07 + throttle * 0.07 : 0, t, 0.1);
+    this.engGain.gain.setTargetAtTime(on ? (0.07 + throttle * 0.07) * (this.duck ? 0.6 : 1) : 0, t, 0.1);
   }
 
   surface(level, v) {

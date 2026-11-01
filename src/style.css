@@ -264,6 +264,26 @@ body.touch .kbd { display: none; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(-6px); } }
 
+/* autoradio */
+.radio { position: fixed; z-index: 7; top: calc(130px + var(--safe-t)); right: calc(10px + var(--safe-r)); width: 240px;
+  background: rgba(20, 22, 20, 0.88); color: #f2efe6; border: 2px solid var(--ink); border-radius: 12px; box-shadow: var(--shadow); padding: 10px; backdrop-filter: blur(6px); }
+.r-head { display: flex; gap: 10px; align-items: center; }
+.r-freq { font: 15px/1 var(--display); color: var(--yellow); background: #0b0c0b; border: 1px solid #333; border-radius: 6px; padding: 7px 7px; min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+.r-info { display: grid; gap: 3px; min-width: 0; }
+.r-info b { font: 13px/1.1 var(--display); text-transform: uppercase; letter-spacing: 0.02em; }
+.r-info span { font-size: 12px; color: #c9c4b6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-video { margin-top: 8px; width: 220px; height: 200px; border-radius: 8px; overflow: hidden; background: #000; }
+.r-video iframe { width: 220px; height: 200px; display: block; }
+.r-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.r-btns button { border: 1px solid #3a3a36; background: #2a2b28; color: #f2efe6; border-radius: 7px; padding: 7px 0; font-size: 13px; }
+.r-btns button:hover { background: #3a3b37; }
+.r-btns #r-power.on { background: var(--green); border-color: var(--green-2); }
+.r-note { font-size: 10.5px; color: #9a958a; margin-top: 6px; line-height: 1.35; }
+.r-note:empty { display: none; }
+body.touch .radio { top: auto; bottom: calc(220px + var(--safe-b)); width: 200px; }
+body.touch .r-video { width: 200px; height: 200px; }
+@media (max-width: 900px) { .radio { top: calc(118px + var(--safe-t)); } }
+
 /* commandes tactiles */
 #touch { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; pointer-events: none; padding: 0 calc(12px + var(--safe-r)) calc(14px + var(--safe-b)) calc(12px + var(--safe-l)); display: flex; justify-content: space-between; align-items: flex-end; }
 #touch button {

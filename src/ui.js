@@ -11,6 +11,7 @@ export function show(id) {
 export function modal(id, on) { $('#' + id).classList.toggle('on', on); }
 export function hud(on) {
   $('#hud').hidden = !on;
+  $('#radio').hidden = !on;
   $('#touch').hidden = !(on && document.body.classList.contains('touch'));
 }
 export function loaded() { $('#loading').classList.add('done'); }
@@ -321,3 +322,22 @@ export function renderGarage({ cfg, onChange, onSave, onCancel }) {
   el.querySelector('#g-save').onclick = () => onSave({ ...cfg, slogan: cleanText(sl.value, 22), plate: cleanText(pl.value, 10) || 'TG' });
   el.querySelector('#g-cancel').onclick = onCancel;
 }
+
+/* ------------------------------------------------------------ autoradio */
+export function radioUI() {
+  return {
+    host: () => 'r-yt',
+    showVideo(on) { $('#r-video').hidden = !on; },
+    render({ station, track, status }) {
+      $('#r-freq').textContent = station ? station.freq : 'OFF';
+      $('#r-station').textContent = station ? station.name : 'Radio éteinte';
+      $('#r-track').textContent = !station ? 'Touche R ou ⏻ pour allumer'
+        : status === 'loading' ? 'Réglage…'
+        : status === 'offline' ? 'Pas de connexion : essaie N1 Groove'
+        : `${track.artist} · ${track.title}`;
+      $('#r-power').classList.toggle('on', !!station);
+      $('#r-note').textContent = station && station.kind === 'yt' ? 'Clips officiels lus depuis YouTube (chaînes des artistes).' : station ? 'Musique originale du jeu, générée en direct.' : '';
+    },
+  };
+}
+export function radioVisible(on) { $('#radio').hidden = !on; }
