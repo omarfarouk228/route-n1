@@ -190,7 +190,8 @@ export function buildScenery(road, rng, quality = 1) {
     const minOff = near ? 34 : 9.5;
     const off = side * (minOff + Math.pow(rng(), 1.6) * 130);
     const type = weighted(rng, B.props);
-    if (B.cliff && Math.abs(off) < 16 && type !== 'rock') continue;
+    const cl = road.sample(Math.max(0, Math.min(L, s))).cliff;
+    if (cl > 0.05 && Math.abs(off) < 26) continue; // pas d'objets accrochés à la paroi
     place(type, s, off, { yaw: rng() * 6.28, scale: rand(rng, 0.75, 1.35) });
   }
 

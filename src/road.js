@@ -80,7 +80,7 @@ export class Road {
           flip = -flip;
           segLeft = rand(rng, 55, 95);
           kT = flip * rand(rng, 0.012, 0.02);
-          gT = 0.075;
+          gT = 0.062;
         } else if (rng() < B.curvy) {
           segLeft = rand(rng, 90, 260);
           kT = (rng() < 0.5 ? -1 : 1) * rand(rng, 0.002, 0.009) * B.curveAmp;
@@ -154,10 +154,25 @@ export class Road {
     return y;
   }
 
+  // hauteur telle que le maillage l'affiche (interpolée entre colonnes et rangées) : les objets posés ne flottent pas
+  meshH(i, off) {
+    const d = Math.abs(off);
+    if (d <= SHOULDER) return this.py[i] - 0.15;
+    let c = 0;
+    while (c < TERRAIN_OFFS.length - 2 && d > TERRAIN_OFFS[c + 1]) c++;
+    const o0 = TERRAIN_OFFS[c], o1 = TERRAIN_OFFS[c + 1];
+    const t = clamp((d - o0) / (o1 - o0), 0, 1);
+    const sg = Math.sign(off);
+    return this.terrainH(i, sg * o0) * (1 - t) + this.terrainH(i, sg * o1) * t;
+  }
+
   groundAt(s, off, out) {
-    const i = Math.round(this.idx(s));
-    const h = this.h[i];
-    out.set(this.px[i] - Math.cos(h) * off, this.terrainH(i, off), this.pz[i] + Math.sin(h) * off);
+    const fi = this.idx(s);
+    const i0 = Math.min(this.n - 1, Math.floor(fi / 2) * 2), i1 = Math.min(this.n - 1, i0 + 2);
+    const t = i1 > i0 ? (fi - i0) / (i1 - i0) : 0;
+    const f = this.sample(s);
+    const y = this.meshH(i0, off) * (1 - t) + this.meshH(i1, off) * t;
+    out.set(f.x - Math.cos(f.h) * off, y, f.z + Math.sin(f.h) * off);
     return out;
   }
 
@@ -277,7 +292,7 @@ export class Road {
       _b.copy(B.g0).lerp(B.g1, nz);
       out.copy(_a).lerp(_b, m.t);
       const rel = y - this.py[i];
-      if (rel > 4) out.lerp(_col.copy(ROCK0).lerp(ROCK1, noise2(wx * 0.1, wz * 0.1)), smoothstep(4, 9, rel) * this.cliff[i]);
+      if (rel > 1.5 && this.cliff[i] > 0) out.lerp(_col.copy(ROCK0).lerp(ROCK1, noise2(wx * 0.1, wz * 0.1)), smoothstep(1.5, 6, rel) * Math.min(1, this.cliff[i] * 1.5) * (Math.abs(off) < 40 ? 1 : 0.4));
       if (Math.abs(off) < 9) out.lerp(BIOME_COLORS[m.a].sh, 0.35);
     };
     const rightOffs = TERRAIN_OFFS;

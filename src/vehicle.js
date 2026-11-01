@@ -36,8 +36,8 @@ export class Player {
     const fuelOk = run.fuel > 0;
     const thr = input.gas && fuelOk ? 1 : 0;
     this.throttle += (thr - this.throttle) * Math.min(1, dt * 5);
-    let F = this.throttle * 3900 * Math.max(0, 1 - Math.max(0, this.v) / 38);
-    F -= 0.85 * this.v * Math.abs(this.v) + 38 * this.v;
+    let F = this.throttle * 4300 * Math.max(0, 1 - Math.max(0, this.v) / 37);
+    F -= 0.85 * this.v * Math.abs(this.v) + 22 * this.v;
     if (!thr && this.v > 0) F -= 150 * Math.min(this.v, 8) + 250; // frein moteur
     F -= mass * 9.81 * f.grade;
     const ax = Math.abs(this.x);

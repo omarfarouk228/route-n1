@@ -148,7 +148,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .svc button { border: 2px solid var(--ink); border-radius: 8px; background: var(--paper); padding: 7px 10px; font: 700 12.5px/1.1 var(--text); box-shadow: 2px 2px 0 var(--ink); }
 .svc button:active { transform: translate(2px, 2px); box-shadow: none; }
 .svc button[disabled] { opacity: 0.4; pointer-events: none; }
-.gare-go { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; padding: 12px 16px; }
+body.touch .kbd { display: none; }
+.gare-go { position: sticky; bottom: 0; z-index: 2; grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; padding: 12px 16px; }
 .gare-go .sum { font-size: 14px; color: var(--ink-2); }
 .gare-go .sum b { color: var(--ink); }
 .weather { display: inline-flex; gap: 6px; align-items: center; padding: 3px 8px; border-radius: 99px; background: var(--paper-2); font-weight: 700; font-size: 12.5px; }

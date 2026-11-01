@@ -539,7 +539,8 @@ function updateCamera(dt) {
   const h = taxi.group.rotation.y;
   fw.set(Math.sin(h), 0, Math.cos(h));
   if (state === 'drive' || state === 'rescue') {
-    let back = 8.2, up = 3.3, ahead = 10, k = 5;
+    const portrait = camera.aspect < 0.9;
+    let back = portrait ? 10.5 : 8.2, up = portrait ? 4.2 : 3.3, ahead = 10, k = 5;
     if (camMode === 1) { back = 14; up = 6.2; ahead = 16; }
     if (camMode === 2) { back = -0.2; up = 1.75; ahead = 25; k = 30; }
     desired.copy(pos).addScaledVector(fw, -back);
@@ -553,7 +554,7 @@ function updateCamera(dt) {
     camera.position.x += (Math.random() - 0.5) * sh;
     camera.position.y += (Math.random() - 0.5) * sh;
     camera.lookAt(camLook);
-    const fov = 58 + Math.min(14, Math.abs(player.v) * 0.4);
+    const fov = (portrait ? 72 : 58) + Math.min(14, Math.abs(player.v) * 0.4);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
   } else {
     orbitA += dt * 0.1;
