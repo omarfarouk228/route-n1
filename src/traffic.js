@@ -1,21 +1,22 @@
 import * as THREE from 'three';
 import * as M from './models.js';
 import { MAT } from './models.js';
+import { makeCharMat, riderGeo, sheepGeo, CHAR_MAT, GOAT_VARIANTS } from './characters.js';
 import { rand, pick, weighted, clamp } from './util.js';
 
 const CAR_COLORS = ['#e9e6dc', '#c8322b', '#2f5f9f', '#9aa0a6', '#1f1f22', '#e9b53a', '#0f5c3c'];
 const SHIRTS = ['#f4c430', '#2f78a8', '#d03a2f', '#0f7a4a', '#e9e2cf', '#7b3f99'];
 const TRUCK_CABS = ['#2f78a8', '#c8322b', '#e9e6dc', '#0f5c3c', '#d9a020'];
 const LOADS = ['#e3d7b8', '#d8cbb0', '#c9b48a', '#e9e2cf'];
-const GOATS = ['#e8e0d0', '#6b4a30', '#2a2522', '#a87a50'];
 
 const TYPES = {
   truck: { len: 8.6, wid: 2.5, geo: () => M.truckGeo(pick(Math.random, TRUCK_CABS), pick(Math.random, LOADS)) },
   car: { len: 4.4, wid: 1.8, geo: () => M.carGeo(pick(Math.random, CAR_COLORS)) },
   bus: { len: 5, wid: 2, geo: () => M.busGeo(pick(Math.random, ['#e9e6dc', '#f4c430', '#2f78a8'])) },
-  moto: { len: 1.9, wid: 0.8, geo: () => M.motoGeo(pick(Math.random, SHIRTS)) },
-  goat: { len: 0.9, wid: 0.6, animal: true, geo: () => M.goatGeo(pick(Math.random, GOATS)) },
-  zebu: { len: 2.0, wid: 0.9, animal: true, geo: () => M.zebuGeo() },
+  moto: { len: 1.9, wid: 0.8, geo: () => M.motoGeo() },
+  goat: { len: 0.9, wid: 0.6, animal: true, stride: 10, geo: () => M.goatGeo(Math.floor(Math.random() * GOAT_VARIANTS)) },
+  sheep: { len: 0.9, wid: 0.6, animal: true, stride: 9, geo: () => sheepGeo(Math.floor(Math.random() * 2)) },
+  zebu: { len: 2.0, wid: 0.9, animal: true, stride: 4.2, geo: () => M.zebuGeo(Math.floor(Math.random() * 3)) },
 };
 
 const _v = new THREE.Vector3();
@@ -37,7 +38,17 @@ export class Traffic {
   get(type) {
     const p = (this.pool[type] ||= []);
     let mesh = p.pop();
-    if (!mesh) { mesh = new THREE.Mesh(TYPES[type].geo(), MAT); mesh.castShadow = this.shadows; }
+    if (!mesh) {
+      const T = TYPES[type];
+      mesh = new THREE.Mesh(T.geo(), T.animal ? makeCharMat() : MAT);
+      mesh.castShadow = this.shadows;
+      if (type === 'moto') {
+        const rider = new THREE.Mesh(riderGeo(pick(Math.random, SHIRTS)), CHAR_MAT);
+        rider.position.z = -0.15;
+        rider.castShadow = this.shadows;
+        mesh.add(rider);
+      }
+    }
     mesh.visible = true;
     this.parent.add(mesh);
     return mesh;
@@ -64,7 +75,10 @@ export class Traffic {
 
   dispose() {
     this.clearAll();
-    for (const list of Object.values(this.pool)) for (const m of list) m.geometry.dispose();
+    for (const list of Object.values(this.pool)) for (const m of list) {
+      if (!m.geometry.userData.shared) m.geometry.dispose();
+      if (m.material !== MAT && m.material !== CHAR_MAT) m.material.dispose();
+    }
     this.pool = {};
   }
 
@@ -119,7 +133,8 @@ export class Traffic {
       const n = c.kind === 'zebu' ? 2 + Math.floor(rng() * 3) : 2 + Math.floor(rng() * 4);
       const dirX = rng() < 0.5 ? 1 : -1;
       for (let k = 0; k < n; k++) {
-        this.spawn(c.kind, c.s + rand(rng, -2.5, 2.5) + k * 0.9, -dirX * (8 + k * 1.6), 0, { vx: dirX * rand(rng, 0.9, 1.4) });
+        const kind = c.kind === 'goat' && rng() < 0.35 ? 'sheep' : c.kind;
+        this.spawn(kind, c.s + rand(rng, -2.5, 2.5) + k * 0.9, -dirX * (8 + k * 1.6), 0, { vx: dirX * rand(rng, 0.9, 1.4) });
       }
     }
 
@@ -131,7 +146,10 @@ export class Traffic {
       if (it.animal) {
         // les animaux pressent le pas au klaxon
         if (horn && Math.abs(it.s - P.s) < 70 && it.s > P.s) it.flee = true;
-        it.x += it.vx * dt * (it.flee ? 2.4 : 1);
+        const step = Math.abs(it.vx) * dt * (it.flee ? 2.4 : 1);
+        it.x += Math.sign(it.vx) * step;
+        const u = it.mesh.material.userData.u;
+        if (u) { u.uWalk.value = 1; u.uPhase.value += step * TYPES[it.type].stride; }
         if (Math.abs(it.x) > 13 && Math.sign(it.x) === Math.sign(it.vx)) { this.release(it); this.items.splice(n, 1); continue; }
         this.place(it);
         continue;

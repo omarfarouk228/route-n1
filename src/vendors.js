@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { vendorGeo, MAT, VENDOR_SPECS } from './models.js';
+import { vendorGeo, VENDOR_SPECS, makeCharMat } from './characters.js';
 import { rand, pick } from './util.js';
 
 // Vendeuses ambulantes : à l'arrêt près d'un village, d'un contrôle ou d'une vendeuse d'essence,
@@ -13,7 +13,7 @@ export class Vendors {
   constructor(parent, shadows) {
     this.parent = parent;
     this.list = VENDOR_SPECS.map((_, i) => {
-      const m = new THREE.Mesh(vendorGeo(i), MAT);
+      const m = new THREE.Mesh(vendorGeo(i), makeCharMat());
       m.castShadow = shadows;
       m.visible = false;
       parent.add(m);
@@ -29,7 +29,7 @@ export class Vendors {
     this.still = 0; this.cool = 0; this.sold = false;
   }
 
-  dispose() { for (const v of this.list) { this.parent.remove(v.mesh); v.mesh.geometry.dispose(); } }
+  dispose() { for (const v of this.list) { this.parent.remove(v.mesh); v.mesh.material.dispose(); } }
 
   // nearStop : le taxi est à l'arrêt dans une zone animée ; renvoie 'cry' ou 'sale' pour les messages
   update(dt, road, P, nearStop, rng) {
@@ -61,21 +61,20 @@ export class Vendors {
       const d = Math.hypot(ds, dx);
       const sp = leaving ? 1.6 : 2.6;
       let moving = false;
+      const u = v.mesh.material.userData.u;
       if (d > 0.15) {
         const k = Math.min(1, (sp * dt) / d);
         v.s += ds * k; v.x += dx * k;
+        u.uPhase.value += d * k * 4.4;
         moving = true;
       } else if (!leaving && !v.arrived) {
         v.arrived = true;
         if (!this.sold && this.list.filter((o) => o.active).every((o) => o.arrived)) { this.sold = true; out.push({ type: 'sale' }); }
       }
       if (leaving && (d < 0.3 || Math.abs(v.s - P.s) > 60)) { v.active = false; v.mesh.visible = false; this.cool = 8; continue; }
-      road.toWorld(v.s, v.x, v.mesh.position);
-      v.phase += dt * (moving ? 11 : 2);
-      v.mesh.position.y += moving ? Math.abs(Math.sin(v.phase)) * 0.06 : 0;
+      u.uWalk.value += ((moving ? 1 : 0) - u.uWalk.value) * Math.min(1, dt * 8);
+      if (Math.abs(v.x) < 4.2) road.toWorld(v.s, v.x, v.mesh.position); else road.groundAt(v.s, v.x, v.mesh.position);
       const h = road.headingAt(v.s);
-      const face = moving ? Math.atan2(dx, ds) : Math.atan2(P.x - v.x, 0.001);
-      v.mesh.rotation.set(0, h - face + Math.PI / 2 * 0 + (moving ? 0 : 0), moving ? Math.sin(v.phase) * 0.04 : 0);
       // orientation monde : avant local (+z) vers la cible
       const fwdS = moving ? ds : 0, fwdX = moving ? dx : P.x - v.x;
       v.mesh.rotation.y = h + Math.atan2(-fwdX, fwdS);

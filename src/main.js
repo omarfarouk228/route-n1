@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, QUOTES, WEATHER_LABEL, makeOffers, weatherFor } from './data.js';
 import { Road, SHOULDER } from './road.js';
-import { buildScenery, disposeGroup } from './scenery.js';
+import { buildScenery, disposeGroup, updateLod } from './scenery.js';
 import { Traffic } from './traffic.js';
 import { Player } from './vehicle.js';
 import { makeVehicle, makeShadowTexture, cloud as cloudGeo } from './models.js';
@@ -14,6 +14,8 @@ import { BIOMES } from './data.js';
 import { makeComposer } from './post.js';
 import { Radio } from './radio.js';
 import { Vendors } from './vendors.js';
+import { Walkers } from './walkers.js';
+import { CHAR_U } from './characters.js';
 import * as UI from './ui.js';
 import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
 
@@ -84,7 +86,7 @@ function buildTaxi(cfg) {
     scene.remove(old.group);
     old.group.remove(shadow, headlight, headlight.target);
     old.group.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
+      if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
       if (o.material && o.material.map) { o.material.map.dispose(); o.material.dispose(); }
     });
   }
@@ -178,6 +180,7 @@ function loadStage(i) {
     scene.remove(world.group);
     world.traffic.dispose();
     world.vendors.dispose();
+    world.walkers.dispose();
     disposeGroup(world.group);
   }
   const road = new Road(STAGES[i], i, run.seed + i * 7919);
@@ -189,8 +192,9 @@ function loadStage(i) {
   group.add(tg);
   const traffic = new Traffic(tg, road, mulberry32(run.seed + i * 131), SHADOWS);
   const vendors = new Vendors(group, SHADOWS);
+  const walkers = new Walkers(group, SHADOWS, isTouch ? 5 : 9);
   scene.add(group);
-  world = { road, group, traffic, vendors, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { road, group, traffic, vendors, walkers, lod: scen.lod, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
 }
@@ -231,13 +235,13 @@ function collide(it) {
     const zebu = it.type === 'zebu';
     const cost = zebu ? PRICES.goat * 3 : PRICES.goat;
     run.money -= cost;
-    log(zebu ? 'Zébu heurté (dédommagement)' : 'Chèvre heurtée (dédommagement)', -cost);
+    log(zebu ? 'Zébu heurté (dédommagement)' : it.type === 'sheep' ? 'Mouton heurté (dédommagement)' : 'Chèvre heurtée (dédommagement)', -cost);
     damage(zebu ? 10 + Math.abs(player.v) * 0.8 : 2 + Math.abs(player.v) * 0.2);
     annoy(10);
     player.v *= zebu ? 0.25 : 0.8;
     player.kick(2.5);
     world.traffic.removeItem(it);
-    UI.toast(`Tu as heurté ${zebu ? 'un zébu' : 'une chèvre'} ! Le propriétaire réclame ${fmtMoney(cost)}.`, 'bad', 3500);
+    UI.toast(`Tu as heurté ${zebu ? 'un zébu' : it.type === 'sheep' ? 'un mouton' : 'une chèvre'} ! Le propriétaire réclame ${fmtMoney(cost)}.`, 'bad', 3500);
     return;
   }
   const rel = Math.abs(player.v - it.v);
@@ -402,6 +406,8 @@ function updateDrive(dt) {
     }
   }
 
+  world.walkers.update(dt, r, player, run.rng, r.biomeAt(clamp(player.s, 0, r.length)).traffic || 1);
+
   // trafic
   const hits = world.traffic.update(dt, player, hornNow, true);
   if (world.traffic.events.includes('oncomingHorn')) sound.farHorn();
@@ -502,6 +508,7 @@ function startDrive() {
   player.reset(16, 1.9);
   world.traffic.clearAll();
   world.vendors.reset();
+  world.walkers.reset();
   UI.show(null);
   hud(true);
   UI.clearToasts();
@@ -798,12 +805,14 @@ function hudData() {
 
 /* ------------------------------------------------------------ boucle principale */
 let last = performance.now();
+let freeCam = false;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   lastDt = dt;
   clock += dt;
+  CHAR_U.uTime.value = clock;
   if (!world) return;
   if (state === 'drive' && !paused) {
     updateDrive(dt);
@@ -814,7 +823,8 @@ function frame(now) {
     world.traffic.update(dt, player, false, false);
   }
   placeTaxi();
-  updateCamera(dt);
+  if (!freeCam) updateCamera(dt);
+  updateLod(world.lod, camera.position, isTouch ? 160 : 230);
   updateLighting();
   rain.update(dt, camera);
   if (post) post.composer.render(); else renderer.render(scene, camera);
@@ -827,5 +837,5 @@ document.fonts?.ready.then(() => setTimeout(UI.loaded, 150));
 setTimeout(UI.loaded, 2500);
 
 // accès de débogage pour les tests manuels
-window.__n1 = { get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
+window.__n1 = { set freeCam(v) { freeCam = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
   goto: (i, weather) => { run.stage = i; run.reached = i; if (weather) run.weathers[i] = weather; openGare(); } };

@@ -35,7 +35,8 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 - **Autoradio** : *N1 Groove*, musique originale générée en direct (cloche gankogui, afrobeat, guitare highlife) qui fonctionne hors ligne, et trois stations de **clips officiels** d'artistes togolais (Toofan, Santrinos Raphaël, Almok, King Mensah, Mic Flammez, Vaudou Game…) lus via le lecteur YouTube intégré, depuis les chaînes des artistes. Aucun fichier audio d'artiste n'est hébergé dans ce dépôt.
 - **Paysages par région** : cocotiers et palmiers à huile au sud, plantations de teck, bananiers, fromagers, nimiers, rôniers et baobabs au nord ; champs de maïs, d'igname, de manioc et de mil ; brûlis de saison sèche ; terrasses kabyè autour de Kara ; ponts sur le Haho et l'Oti avec forêt galerie.
 - **Villes et villages** : immeubles R+1 en périphérie de Lomé, maisons en ciment et tôle, concessions de cases rondes avec greniers au nord, églises, mosquées (Sokodé), écoles avec le drapeau, kiosques aux enseignes peintes, stations-service, antennes, ligne électrique continue.
-- **Personnages** : porteuses de bassines, femmes avec bébé au dos, hommes en boubou, écoliers en kaki, vendeuses qui accourent aux vitres quand tu t'arrêtes (le confort des passagers remonte).
+- **Personnages** : silhouettes modelées (visage, mains, pieds), pagnes et foulards en **motifs wax** dessinés dans le shader, porteuses de bassines, femmes avec bébé au dos, hommes en grand boubou, écoliers en kaki, policiers en béret. Animation de marche (jambes, genoux, bras), passants qui circulent sur l'accotement et s'écartent du taxi, vendeuses qui accourent aux vitres quand tu t'arrêtes (le confort des passagers remonte).
+- **Animaux** : chèvres naines aux robes pie avec cornes et barbiche, moutons Djallonké, zébus peuls à bosse et cornes en lyre (avec leur bouvier), poules qui picorent ; ils marchent en traversant la route, broutent et remuent la queue.
 - **Rendu** : ombres portées, nuages, montagnes à l'horizon, étalonnage et bloom, résolution dynamique pour tenir 60 images/s.
 - **Ralentisseurs** à l'entrée des villages : à franchir au pas.
 
@@ -70,6 +71,7 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 | `src/garage.js` | Véhicules et personnalisation |
 | `src/radio.js` | Autoradio : station générée en direct et stations YouTube |
 | `src/vendors.js` | Vendeuses ambulantes |
+| `src/characters.js` · `src/walkers.js` | Personnages et animaux (squelette animé dans le shader, motifs wax), passants |
 | `src/post.js` · `src/terrainmat.js` | Post-traitement, matériaux du sol et de l'eau |
 | `scripts/` | Scripts Python qui régénèrent les données géographiques depuis l'API Overpass |
 | `src/main.js` | Boucle de jeu, états (titre, gare, conduite, arrivée, fin), règles, caméra, lumière |

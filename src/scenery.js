@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as M from './models.js';
 import { MAT } from './models.js';
+import * as CH from './characters.js';
 import { SHOULDER } from './road.js';
 import { CITIES, STAGES } from './data.js';
 import { rand, weighted } from './util.js';
@@ -24,12 +25,17 @@ function geos() {
     yamPile: M.yamPile(), charcoal: M.charcoal(), firewood: M.firewood(), basins: M.basins(), moto: M.motoParked(),
   };
   for (let i = 0; i < M.PEOPLE_VARIANTS; i++) GEO['person' + i] = M.person(i);
+  for (let i = 0; i < CH.GOAT_VARIANTS; i++) GEO['goat' + i] = CH.goatGeo(i);
+  for (let i = 0; i < 3; i++) { GEO['chicken' + i] = CH.chickenGeo(i); GEO['zebu' + i] = CH.zebuGeo(i); }
+  for (let i = 0; i < 2; i++) GEO['sheep' + i] = CH.sheepGeo(i);
+  GEO.police = CH.policeGeo();
   return GEO;
 }
 // types qui projettent une ombre (PC uniquement)
 const SHADOW_TYPES = new Set(['coco', 'oilpalm', 'mango', 'teak', 'baobab', 'karite', 'neem', 'ronier', 'fromager', 'banana',
   'houseA', 'houseB', 'houseC', 'hut', 'compound', 'building2a', 'building2b', 'building2c', 'church', 'mosque', 'school', 'station', 'stall', 'shelter', 'taxi']);
 
+const CHAR_TYPE = /^(person|goat|chicken|zebu|sheep|police)/;
 const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
@@ -240,6 +246,18 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
         if (rng() < 0.6) person(s + 1.2, side * rand(rng, 8.2, 9.2), [0, 2, 9, 11]);
       }
       if (rng() < 0.35 * dense) person(s, (rng() < 0.5 ? -1 : 1) * rand(rng, 7.5, 9.5));
+      // basse-cour en liberté : poules, chèvres, moutons
+      if (rng() < 0.5 * dense) {
+        const side = rng() < 0.5 ? -1 : 1, off = side * rand(rng, 9.5, 15), n = 2 + Math.floor(rng() * 4);
+        for (let k = 0; k < n; k++) place('chicken' + Math.floor(rng() * 3), s + rand(rng, -2.5, 2.5), off + rand(rng, -1.5, 1.5), { yaw: rng() * 6.28 });
+      }
+      if (rng() < 0.32 * dense) {
+        const side = rng() < 0.5 ? -1 : 1, n = 1 + Math.floor(rng() * 3);
+        for (let k = 0; k < n; k++) {
+          const t = rng() < 0.7 ? 'goat' + Math.floor(rng() * CH.GOAT_VARIANTS) : 'sheep' + Math.floor(rng() * 2);
+          place(t, s + rand(rng, -4, 4), side * rand(rng, 9.4, 17), { yaw: rng() * 6.28, scale: rand(rng, 0.85, 1.05) });
+        }
+      }
       if (rng() < 0.12 * dense) for (let k = 0; k < 3; k++) place('moto', s + k * 1.1, -(rand(rng, 8, 8.6)), { yaw: road.headingAt(s) + Math.PI / 2 + rand(rng, -0.2, 0.2) });
     }
     // équipements
@@ -344,6 +362,14 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
       if (!road.fieldAt(s, off)) place('tallGrass', s, off, { yaw: rng() * 6.28, scale: rand(rng, 0.8, 1.3) });
     }
   }
+  // troupeaux de zébus avec leur bouvier peul (savane et Sahel)
+  for (let s = 150; s < L - 150; s += rand(rng, 260, 520)) {
+    if (isBusy(s) || nearRiver(s, 20) || !/savane|sahel|centre|kabye/.test(road.biomeKey(s))) continue;
+    const side = rng() < 0.5 ? -1 : 1, off = side * rand(rng, 16, 40), n = 3 + Math.floor(rng() * 5);
+    if (road.fieldAt(s, off)) continue;
+    for (let k = 0; k < n; k++) place('zebu' + Math.floor(rng() * 3), s + rand(rng, -9, 9), off + rand(rng, -5, 5), { yaw: rng() * 6.28, scale: rand(rng, 0.9, 1.05) });
+    person(s + 6, off - side * 3, [4, 13]);
+  }
   // gens qui marchent entre les villages
   for (let s = 100; s < L - 100; s += rand(rng, 40, 110)) {
     if (isBusy(s)) continue;
@@ -377,14 +403,28 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
   }
 
   /* --- instanciation ------------------------------------------------------ */
-  for (const [type, mats] of Object.entries(lists)) {
-    const im = new THREE.InstancedMesh(G[type], MAT, mats.length);
-    mats.forEach((m, k) => im.setMatrixAt(k, m));
-    im.instanceMatrix.needsUpdate = true;
-    im.computeBoundingSphere();
-    if (shadows && SHADOW_TYPES.has(type)) im.castShadow = true;
-    im.receiveShadow = shadows;
-    group.add(im);
+  const lod = [];
+  for (const [type, all] of Object.entries(lists)) {
+    const isChar = CHAR_TYPE.test(type);
+    // personnages et animaux : découpés en îlots de 120 m, masqués au loin (voir updateLod)
+    const chunks = new Map();
+    if (isChar) {
+      for (const m of all) {
+        const k = Math.floor(m.elements[12] / 120) + ',' + Math.floor(m.elements[14] / 120);
+        if (!chunks.has(k)) chunks.set(k, []);
+        chunks.get(k).push(m);
+      }
+    } else chunks.set('all', all);
+    for (const mats of chunks.values()) {
+      const im = new THREE.InstancedMesh(G[type], isChar ? CH.CHAR_MAT : MAT, mats.length);
+      mats.forEach((m, k) => im.setMatrixAt(k, m));
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+      if (shadows && SHADOW_TYPES.has(type)) im.castShadow = true;
+      im.receiveShadow = shadows;
+      group.add(im);
+      if (isChar) lod.push(im);
+    }
   }
   // enseignes (un seul maillage)
   if (signQuads.length) {
@@ -465,7 +505,7 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     sign.rotation.y = h + Math.PI - 0.25;
     group.add(sign);
     for (let k = 0; k < 2; k++) {
-      const pz = new THREE.Mesh(G['person' + (k ? 1 : 5)], MAT);
+      const pz = new THREE.Mesh(G.police, CH.CHAR_MAT);
       road.groundAt(cp.s + 1 + k * 1.2, 6.2 + k * 0.6, pz.position);
       pz.rotation.y = h - Math.PI / 2;
       group.add(pz);
@@ -480,10 +520,20 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     return { cp, pivot };
   });
 
-  return { group, checkpoints };
+  return { group, checkpoints, lod };
 }
 
-const SHARED_MATS = () => new Set([MAT, TERRAIN_MAT, WATER_MAT, CONCRETE_MAT, SIGN_ATLAS, FLAG_MAT]);
+// masque les îlots de personnages et d'animaux trop loin de la caméra
+export function updateLod(lod, cam, dist = 230) {
+  const d2 = dist * dist;
+  for (const im of lod) {
+    const c = im.boundingSphere.center, r = im.boundingSphere.radius;
+    const dx = c.x - cam.x, dz = c.z - cam.z;
+    im.visible = dx * dx + dz * dz < d2 + r * r + 2 * dist * r;
+  }
+}
+
+const SHARED_MATS = () => new Set([MAT, CH.CHAR_MAT, TERRAIN_MAT, WATER_MAT, CONCRETE_MAT, SIGN_ATLAS, FLAG_MAT]);
 export function disposeGroup(group) {
   const keep = SHARED_MATS();
   group.traverse((o) => {
@@ -499,6 +549,7 @@ export function disposeGroup(group) {
   });
 }
 function isShared(geo) {
+  if (geo.userData.shared) return true;
   if (!GEO) return false;
   for (const k in GEO) if (GEO[k] === geo) return true;
   return false;
