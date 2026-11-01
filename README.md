@@ -14,7 +14,8 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 - **Klaxon** : `Espace` / `H` (le camion ou le zém devant toi se range à droite ; les chèvres pressent le pas)
 - **Caméra** : `C` · **Son** : `M` · **Pause** : `P` / `Échap`
 - **Radio** : `R` allumer/éteindre · `T` station suivante · `N` titre suivant · `V` audio seul / clip
-- Sur mobile : boutons tactiles ◀ ▶, Klaxon, Frein, Gaz.
+- Sur mobile : boutons tactiles ◀ ▶, Klaxon, Frein, Gaz (portrait ou paysage).
+- **Manette** (Xbox, PlayStation, USB ou Bluetooth) : RT / R2 accélère (gâchette progressive), LT / L2 freine, stick gauche ou croix pour tourner, X / Carré klaxonne, Y / Triangle caméra, LB / RB station précédente / suivante, Select allume la radio, R3 titre suivant, Start pause, A / Croix valide les écrans.
 
 ## Règles du voyage
 

@@ -10,6 +10,8 @@ export class Sound {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    // iPhone : catégorie « lecture » pour que le son du jeu passe même en mode silencieux
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* non pris en charge */ }
     const ctx = (this.ctx = new AC());
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.55;
@@ -27,6 +29,19 @@ export class Sound {
     this.o1.connect(this.engFilter); this.o2.connect(g2); g2.connect(this.engFilter);
     this.engFilter.connect(this.engGain); this.engGain.connect(this.master);
     this.o1.start(); this.o2.start();
+
+    // klaxon tenu : deux notes de klaxon de voiture et leurs harmoniques, filtrées autour de 1,2 kHz
+    // (les haut-parleurs de téléphone rendent mal les graves)
+    this.hornGain = ctx.createGain(); this.hornGain.gain.value = 0;
+    const hf = ctx.createBiquadFilter(); hf.type = 'peaking'; hf.frequency.value = 1200; hf.Q.value = 0.9; hf.gain.value = 9;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 280;
+    for (const [f, type, g] of [[415, 'square', 0.5], [523, 'square', 0.45], [830, 'sawtooth', 0.25], [1046, 'sawtooth', 0.18]]) {
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = f;
+      const og = ctx.createGain(); og.gain.value = g;
+      o.connect(og); og.connect(hp); o.start();
+    }
+    hp.connect(hf); hf.connect(this.hornGain); this.hornGain.connect(this.master);
+    this.hornUntil = 0;
 
     // bruit blanc partagé
     const len = ctx.sampleRate * 2;
@@ -84,6 +99,8 @@ export class Sound {
     this.engGain.gain.setTargetAtTime(0, t, 0.1);
     this.gravelGain.gain.setTargetAtTime(0, t, 0.1);
     this.rainGain.gain.setTargetAtTime(0, t, 0.3);
+    this.hornUntil = 0;
+    this.hornHold(false);
   }
 
   tone(freqs, dur, type = 'square', vol = 0.12, delay = 0) {
@@ -114,7 +131,22 @@ export class Sound {
     src.start(t); src.stop(t + dur);
   }
 
-  horn() { this.tone([392, 494], 0.38, 'square', 0.09); }
+  // coup de klaxon (durée minimale), prolongé tant que la touche est tenue (voir hornHold)
+  horn() {
+    if (!this.ctx) return;
+    this.init();
+    this.hornUntil = this.ctx.currentTime + 0.32;
+    this.hornHold(true);
+  }
+  hornHold(on) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const want = on || t < this.hornUntil;
+    if (want === this.hornOn) return;
+    this.hornOn = want;
+    this.hornGain.gain.cancelScheduledValues(t);
+    this.hornGain.gain.setTargetAtTime(want ? 0.2 : 0, t, want ? 0.012 : 0.04);
+  }
   farHorn() { this.tone([330, 415], 0.5, 'sawtooth', 0.04); }
   bump(strength = 1) { this.noise(0.18, 180, 0.35 * strength); }
   crash() { this.noise(0.6, 900, 0.6); this.noise(0.4, 120, 0.8); }

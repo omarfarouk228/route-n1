@@ -312,6 +312,7 @@ function updateDrive(dt) {
   const inp = input.read();
   const hornNow = input.consumeHorn();
   if (hornNow) sound.horn();
+  sound.hornHold(inp.horn);
   const ev = player.update(dt, r, inp, run, world.weather);
   run.stageTime += dt;
   // horloge : suit les kilomètres réels parcourus (≈ 60 km/h de moyenne en taxi-brousse), plus le temps à l'arrêt
@@ -759,6 +760,13 @@ input.on('Enter', () => {
   if (btn && !document.querySelector('.screen.modal.on')) document.querySelector(btn)?.click();
 });
 input.on('KeyP', () => setPause(!paused));
+// manette : A valide les écrans (ou reprend la partie), Start met en pause, B ferme la pause, LB station précédente
+input.on('PadA', () => { if (paused) setPause(false); else if (state !== 'drive') input.emit('Enter'); });
+input.on('PadB', () => { if (paused) setPause(false); });
+input.on('PadStart', () => { if (state === 'drive') setPause(!paused); else input.emit('Enter'); });
+input.on('PadLB', () => { if (state === 'drive') radio.nextStation(-1); });
+input.on('PadConnected', () => UI.toast('Manette connectée : RT accélère, LT freine, stick pour tourner, X klaxonne, Start pause.', 'good', 4200));
+input.on('PadDisconnected', () => { UI.toast('Manette déconnectée.', 'warn', 2400); if (state === 'drive' && !paused) setPause(true); });
 input.on('Escape', () => setPause(!paused));
 input.on('KeyC', () => { camMode = (camMode + 1) % 3; });
 input.on('KeyM', toggleSound);
@@ -925,6 +933,7 @@ function frame(now) {
   lastDt = dt;
   clock += dt;
   CHAR_U.uTime.value = clock;
+  input.poll();
   radio.update(dt);
   if (!world) return;
   if (state === 'drive' && !paused) {
@@ -943,6 +952,9 @@ function frame(now) {
   if (post) post.composer.render(); else renderer.render(scene, camera);
   if (!document.hidden) adaptResolution(dt);
 }
+
+// mobile : le navigateur peut mettre le son en veille ; chaque toucher le réveille
+addEventListener('pointerdown', () => { if (sound.ctx && sound.ctx.state !== 'running') sound.ctx.resume(); }, { passive: true });
 
 startTitle();
 requestAnimationFrame(frame);

@@ -35,7 +35,7 @@ export class Player {
 
     // moteur, frein, pente
     const fuelOk = run.fuel > 0;
-    const thr = input.gas && fuelOk ? 1 : 0;
+    const thr = input.gas && fuelOk ? (input.gasAmt ?? 1) : 0; // gâchette analogique de la manette
     this.throttle += (thr - this.throttle) * Math.min(1, dt * 5);
     let F = this.throttle * V.power * Math.max(0, 1 - Math.max(0, this.v) / V.vmax);
     F -= 0.85 * this.v * Math.abs(this.v) + 22 * this.v;

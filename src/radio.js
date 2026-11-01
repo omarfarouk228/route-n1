@@ -148,7 +148,7 @@ export class SynthStation {
       // guitare highlife : arpège en doubles croches
       const tri = TRIAD[q];
       if (st % 2 === 0 || (bar % 2 && st % 3 === 0)) {
-        const n = root + 12 + tri[(st / 2 + bar) % 3] + (st >= 8 ? 12 : 0);
+        const n = root + 12 + tri[(Math.floor(st / 2) + bar) % 3] + (st >= 8 ? 12 : 0);
         this.pluck(t, NOTE(n), 0.07);
       }
       // nappes d'accords en contretemps

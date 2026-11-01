@@ -133,6 +133,7 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
         <ul>
           <li><b>À la gare</b> : choisis tes passagers selon la place et les colis, fais le plein, répare.</li>
           <li><b>Commandes</b> : ${touch ? 'boutons Gaz, Frein, flèches et Klaxon' : '<span class="kbd">↑</span> gaz, <span class="kbd">↓</span> frein et marche arrière, <span class="kbd">←</span> <span class="kbd">→</span> direction, <span class="kbd">Espace</span> klaxon, <span class="kbd">C</span> caméra, <span class="kbd">R</span> radio'}.</li>
+          <li><b>Manette</b> (Xbox, PlayStation…) : RT accélère, LT freine, stick gauche pour tourner, X klaxonne, Y caméra, LB / RB stations, Start pause, A valide.</li>
           <li><b>Klaxonne</b> derrière un camion : il se range à droite. Regarde d’abord en face avant de doubler.</li>
           <li><b>Contrôles</b> : sous 20 km/h ou amende. <b>Ralentisseurs</b> et <b>nids-de-poule</b> : ralentis.</li>
           <li><b>Essence</b> : arrête-toi sur le bas-côté droit devant les vendeuses. À l’arrêt dans un village, les marchandes viennent aux vitres.</li>
@@ -295,7 +296,7 @@ export function renderPause({ onResume, onRestart, onQuit, stage, progress }) {
     <div class="card sheet"><div class="stripe"></div><div class="inner">
       <div class="eyebrow">Pause</div>
       <h2>Le moteur tourne au ralenti</h2>
-      <p class="sub">Le chrono est arrêté. <span class="kbd">P</span> ou <span class="kbd">Échap</span> pour reprendre.</p>
+      <p class="sub">Le chrono est arrêté.${document.body.classList.contains('touch') ? '' : ' <span class="kbd">P</span> ou <span class="kbd">Échap</span> pour reprendre.'}</p>
       <div class="actions">
         <button class="btn green" id="p-resume">Reprendre</button>
         <button class="btn ghost" id="p-restart">Recommencer l’étape</button>

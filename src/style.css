@@ -406,15 +406,6 @@ body.touch .r-video, body.touch .r-video iframe { width: 194px; height: 180px; }
   #toasts { top: calc(108px + var(--safe-t)); }
   .toast { font-size: 13px; }
 }
-@media (max-height: 500px) and (orientation: landscape) {
-  #minimap { display: none; }
-  body.touch .hud-bottom { bottom: calc(10px + var(--safe-b)); left: 50%; transform: translateX(-50%); width: auto; gap: 10px; right: auto; }
-  .gauges { width: 180px; }
-  #toasts { top: calc(70px + var(--safe-t)); }
-  .hud-btns { top: calc(10px + var(--safe-t)); right: 50%; transform: translateX(50%); }
-  .hud-top .wallet { display: none; }
-  .speedo { width: 110px; height: 110px; }
-}
 @media (prefers-reduced-motion: reduce) {
   .screen.on, .toast, .bn, .ledger .l { animation: none; }
 }
@@ -440,3 +431,50 @@ body.touch .h-alert b { font-size: 13px; }
 #toasts { transition: transform .25s ease; }
 #hud.has-alert #toasts { transform: translate(-50%, 72px); }
 body.touch #hud.has-alert #toasts { transform: translate(-50%, 64px); }
+
+@media (max-height: 520px) and (orientation: landscape) {
+  /* téléphone en paysage : bandeau compact en haut, compteur et jauges au centre en bas, commandes sur les côtés */
+  .hud-top { display: flex; justify-content: space-between; align-items: flex-start; padding: calc(8px + var(--safe-t)) calc(10px + var(--safe-r)) 0 calc(10px + var(--safe-l)); }
+  .routebar { display: none; }
+  .hud-top .stage { min-width: 0; max-width: 300px; padding: 6px 10px 7px; }
+  .hud-top .tag { font-size: 9.5px; }
+  .hud-top .route { font-size: 15px; margin-top: 3px; }
+  .hud-top .meta { font-size: 11px; margin-top: 1px; }
+  .hud-top .meta b { font-size: 12px; }
+  .hud-top .wallet { display: block; padding: 6px 10px; min-width: 104px; }
+  .hud-top .money { font-size: 17px; }
+  .hud-top .clock { font-size: 11px; margin-top: 3px; }
+  .hud-btns { top: calc(8px + var(--safe-t)); right: 50%; transform: translateX(50%); gap: 5px; }
+  .hud-btns button { width: 34px; height: 34px; }
+  .hud-btns svg { width: 16px; height: 16px; }
+  #minimap { display: none; }
+  /* le centre reste dégagé pour voir le taxi : jauges en haut à gauche, compteur au-dessus de Frein et Gaz */
+  body.touch .hud-bottom { position: static; transform: none; }
+  body.touch .left-stack { position: absolute; top: calc(96px + var(--safe-t)); left: calc(10px + var(--safe-l)); }
+  body.touch .speedo { position: absolute; right: calc(16px + var(--safe-r)); bottom: calc(94px + var(--safe-b)); }
+  .gauges { width: 158px; padding: 7px 9px; gap: 6px; }
+  .gauges .g { grid-template-columns: 14px 1fr 36px; gap: 6px; }
+  .gauges svg { width: 14px; height: 14px; }
+  .gauges em { font-size: 11px; }
+  .speedo { width: 96px; height: 96px; }
+  .sp-num b { font-size: 28px; }
+  .sp-num span { font-size: 8px; }
+  .sp-gear { bottom: 2px; }
+  .sp-gear span { display: none; }
+  body.touch .radio { top: calc(70px + var(--safe-t)); right: calc(10px + var(--safe-r)); width: 200px; padding: 7px 9px; }
+  body.touch .radio.min.am { width: 200px; }
+  body.touch .r-video, body.touch .r-video iframe { width: 182px; height: 150px; }
+  body.touch #toasts { top: calc(56px + var(--safe-t)); width: min(420px, calc(100% - 460px)); min-width: 260px; }
+  .toast { font-size: 12px; padding: 7px 12px; }
+  body.touch .h-alert { top: calc(52px + var(--safe-t)); padding: 6px 12px; }
+  body.touch #hud.has-alert #toasts { transform: translate(-50%, 54px); }
+  .bn .t { font-size: 34px; }
+  #touch { padding-bottom: calc(10px + var(--safe-b)); }
+  #touch button { width: 58px; height: 58px; }
+  #touch .gas { width: 74px; height: 74px; }
+  #touch .horn { width: 52px; height: 52px; font-size: 9px; }
+  #touch .t-left, #touch .t-right { gap: 10px; }
+  /* écrans (pause, gare…) : la carte cède la place aux boutons */
+  #pause-map { display: none !important; }
+  .modal .sheet { max-height: calc(100vh - 20px); overflow: auto; }
+}
