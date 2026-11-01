@@ -2,7 +2,7 @@
 
 Jeu 3D dans le navigateur (PC et mobile) : tu conduis un taxi-brousse sur la **Nationale 1 du Togo**, de Lomé à Dapaong, en six étapes : Tsévié, Atakpamé, Sokodé, Kara, Mango, Dapaong.
 
-Ce n'est pas une course : c'est un **voyage à gérer**. À chaque gare routière tu choisis tes passagers et tes colis, tu fais le plein et tu répares. Sur la route, tu doubles les camions surchargés, tu évites les nids-de-poule, tu passes les contrôles et tu montes la faille d'Alédjo. Il faut arriver avec le taxi entier, des passagers contents et de l'argent en caisse.
+Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai tracé de la N1** (OpenStreetMap), avec les vraies distances entre les villes. À chaque gare routière tu choisis tes passagers et tes colis, tu fais le plein et tu répares. Sur la route, tu doubles les camions surchargés, tu évites les nids-de-poule, tu passes les contrôles et tu montes la faille d'Alédjo. Il faut arriver avec le taxi entier, des passagers contents et de l'argent en caisse.
 
 ## Jouer
 
@@ -13,6 +13,7 @@ Ce n'est pas une course : c'est un **voyage à gérer**. À chaque gare routièr
 - **Direction** : `←` `→` / `Q` `D` / `A` `D`
 - **Klaxon** : `Espace` / `H` (le camion ou le zém devant toi se range à droite ; les chèvres pressent le pas)
 - **Caméra** : `C` · **Son** : `M` · **Pause** : `P` / `Échap`
+- **Radio** : `R` allumer/éteindre · `T` station suivante · `N` titre suivant
 - Sur mobile : boutons tactiles ◀ ▶, Klaxon, Frein, Gaz.
 
 ## Règles du voyage
@@ -27,16 +28,27 @@ Ce n'est pas une course : c'est un **voyage à gérer**. À chaque gare routièr
 | Contrôles routiers | Au-dessus de 20 km/h : amende de 5 000 F. |
 | Météo | Pluie (moins d'adhérence), harmattan (poussière) ; cycle jour et nuit avec phares. |
 
+## Nouveautés
+
+- **Carte réelle** : tracé de la N1 et contour du Togo issus d'OpenStreetMap ; mini-carte orientée pendant la conduite, carte complète à la gare, en pause et sur l'écran titre. La forme des virages suit la route réelle (compressée).
+- **Garage** : break 7 places, minibus 12 places ou berline 4 places, chacun avec sa physique (masse, puissance, adhérence, consommation). Peinture (palette ou couleur libre), bandes, jantes, galerie, slogan peint sur la lunette arrière et plaque personnalisée.
+- **Autoradio** : *N1 Groove*, musique originale générée en direct (cloche gankogui, afrobeat, guitare highlife) qui fonctionne hors ligne, et trois stations de **clips officiels** d'artistes togolais (Toofan, Santrinos Raphaël, Almok, King Mensah, Mic Flammez, Vaudou Game…) lus via le lecteur YouTube intégré, depuis les chaînes des artistes. Aucun fichier audio d'artiste n'est hébergé dans ce dépôt.
+- **Paysages par région** : cocotiers et palmiers à huile au sud, plantations de teck, bananiers, fromagers, nimiers, rôniers et baobabs au nord ; champs de maïs, d'igname, de manioc et de mil ; brûlis de saison sèche ; terrasses kabyè autour de Kara ; ponts sur le Haho et l'Oti avec forêt galerie.
+- **Villes et villages** : immeubles R+1 en périphérie de Lomé, maisons en ciment et tôle, concessions de cases rondes avec greniers au nord, églises, mosquées (Sokodé), écoles avec le drapeau, kiosques aux enseignes peintes, stations-service, antennes, ligne électrique continue.
+- **Personnages** : porteuses de bassines, femmes avec bébé au dos, hommes en boubou, écoliers en kaki, vendeuses qui accourent aux vitres quand tu t'arrêtes (le confort des passagers remonte).
+- **Rendu** : ombres portées, nuages, montagnes à l'horizon, étalonnage et bloom, résolution dynamique pour tenir 60 images/s.
+- **Ralentisseurs** à l'entrée des villages : à franchir au pas.
+
 ## Le trajet
 
-Le trajet réel fait environ 645 km ; il est **compressé** à environ 15 km de route jouable. Les bornes kilométriques et le HUD affichent les distances réelles. Les paysages changent du sud au nord : côte et cocotiers, plaine, plateaux, faille d'Alédjo (paroi rocheuse, lacets, ligne continue), savane avec baobabs et termitières, Sahel dans l'harmattan.
+Le trajet réel fait 618 km (mesuré sur OpenStreetMap) ; il est **compressé** à environ 16,5 km de route jouable. Les bornes kilométriques et le HUD affichent les distances réelles. Les paysages changent du sud au nord : côte et cocotiers, plaine, plateaux, faille d'Alédjo (paroi rocheuse, lacets, ligne continue), savane avec baobabs et termitières, Sahel dans l'harmattan.
 
 ## Technique
 
 - [Three.js](https://threejs.org) et [Vite](https://vite.dev), sans moteur de jeu.
 - Tout est généré dans le code : route procédurale, terrain, bâtiments, véhicules, panneaux (textures canvas), sons (WebAudio). Il n'y a **aucun fichier image ni audio** à télécharger.
-- Environ 150 Ko gzippés au total, et moins de 100 Mo de mémoire JavaScript en jeu.
-- Qualité réduite automatiquement sur écran tactile (densité du décor, résolution).
+- Environ 200 Ko gzippés pour le code, et moins de 200 Mo de mémoire JavaScript en jeu, stable d'une étape à l'autre.
+- Qualité réduite automatiquement sur écran tactile (densité du décor, pas d'ombres ni de post-traitement) et résolution dynamique sur PC.
 
 ## Développement
 
@@ -53,6 +65,13 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 
 | Fichier | Rôle |
 | --- | --- |
+| `src/geo.js` · `src/geo/*.json` | Tracé réel de la N1 et contour du Togo (OpenStreetMap), projection, positions des villes |
+| `src/map.js` | Carte complète et mini-carte |
+| `src/garage.js` | Véhicules et personnalisation |
+| `src/radio.js` | Autoradio : station générée en direct et stations YouTube |
+| `src/vendors.js` | Vendeuses ambulantes |
+| `src/post.js` · `src/terrainmat.js` | Post-traitement, matériaux du sol et de l'eau |
+| `scripts/` | Scripts Python qui régénèrent les données géographiques depuis l'API Overpass |
 | `src/main.js` | Boucle de jeu, états (titre, gare, conduite, arrivée, fin), règles, caméra, lumière |
 | `src/data.js` | Villes, étapes, biomes, prix, profils de passagers, répliques |
 | `src/road.js` | Tracé procédural de la N1, terrain, falaises, marquages, nids-de-poule, éléments du parcours |
@@ -63,6 +82,11 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 | `src/sky.js` | Ciel, cycle jour/nuit, météo, pluie |
 | `src/audio.js` | Moteur, klaxon, chocs, pluie (WebAudio) |
 | `src/ui.js` · `src/style.css` | HUD et écrans |
+
+## Crédits
+
+- Données géographiques © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright), sous licence ODbL.
+- Musiques des stations « Lomé Hits », « Rap 228 » et « Légendes » : clips officiels publiés par les artistes sur YouTube, lus via le lecteur intégré de YouTube. Tous droits réservés à leurs auteurs.
 
 ## Licence
 

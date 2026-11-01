@@ -139,6 +139,15 @@ document.getElementById('r-power').onclick = () => radio.power();
 document.getElementById('r-next').onclick = () => radio.nextStation(1);
 document.getElementById('r-prev').onclick = () => radio.nextStation(-1);
 document.getElementById('r-skip').onclick = () => radio.nextTrack();
+// radio repliable (repliée par défaut sur mobile) ; un clip YouTube ne joue que lorsqu'il est visible
+const radioEl = document.getElementById('radio');
+if (isTouch) radioEl.classList.add('min');
+function toggleRadioPanel() {
+  const min = radioEl.classList.toggle('min');
+  if (radio.current && radio.current.kind === 'yt') { try { if (min) radio.yt?.pauseVideo(); else radio.yt?.playVideo(); } catch { /* lecteur pas prêt */ } }
+}
+document.getElementById('r-head').onclick = toggleRadioPanel;
+document.getElementById('r-head').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleRadioPanel(); } };
 
 let run = null;
 let world = null;
@@ -416,7 +425,7 @@ let radioStarted = false;
 function hud(on) {
   UI.hud(on);
   const yt = radio.current && radio.current.kind === 'yt';
-  if (yt) { try { if (on) radio.yt?.playVideo(); else radio.yt?.pauseVideo(); } catch { /* lecteur pas prêt */ } }
+  if (yt) { try { if (on && !radioEl.classList.contains('min')) radio.yt?.playVideo(); else radio.yt?.pauseVideo(); } catch { /* lecteur pas prêt */ } }
   if (on && !radioStarted) {
     radioStarted = true;
     if (radio.saved && radio.saved.station >= 0) radio.restore();

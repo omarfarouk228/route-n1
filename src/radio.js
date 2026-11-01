@@ -255,9 +255,9 @@ export class Radio {
         });
       });
       this.yt.setVolume(70);
-      this.yt.playVideo();
+      if (!document.getElementById('radio').classList.contains('min')) this.yt.playVideo(); else this.yt.pauseVideo();
     } else {
-      this.yt.loadVideoById(t.id);
+      if (document.getElementById('radio').classList.contains('min')) this.yt.cueVideoById(t.id); else this.yt.loadVideoById(t.id);
     }
     this.render();
   }
@@ -266,7 +266,7 @@ export class Radio {
     if (on) { this.synth?.stop(); try { this.yt?.pauseVideo(); } catch { /* ignore */ } }
     else if (this.current) {
       if (this.current.kind === 'synth') this.synth?.play(this.trackInfo.preset);
-      else try { this.yt?.playVideo(); } catch { /* ignore */ }
+      else if (!document.getElementById('radio').classList.contains('min')) try { this.yt?.playVideo(); } catch { /* ignore */ }
     }
   }
   render(status) { this.ui.render({ station: this.current, track: this.trackInfo, status, index: this.station }); }
