@@ -1,6 +1,7 @@
 import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, TOTAL_KM, WEATHER_LABEL, traitLabel } from './data.js';
 import { fmtMoney, fmtClock, fmtDuration, clamp } from './util.js';
 import { VEHICLES, PALETTE, STRIPES, RIMS, SLOGANS, cleanText } from './garage.js';
+import { drawFullMap, drawMiniMap } from './map.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -93,6 +94,10 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
         </ul>
       </div>
     </div>`;
+  const tm = document.createElement('canvas');
+  tm.className = 'title-map';
+  el.appendChild(tm);
+  drawFullMap(tm, { w: 300, h: Math.min(660, window.innerHeight - 80), stage: 0, progress: 0, dark: true });
   el.querySelector('#t-start').onclick = onStart;
   el.querySelector('#t-garage').onclick = onGarage;
 }
@@ -149,6 +154,7 @@ export function renderGare(ctx) {
         <div class="cash"><div class="eyebrow">${run.money < 0 ? 'Dette' : 'En caisse'}</div><b style="${run.money < 0 ? 'color:var(--red)' : ''}">${fmtMoney(run.money)}</b></div>
       </div></div>
 
+      <div class="card mapcard"><h3 style="margin:2px 4px 8px;font:13px var(--display);text-transform:uppercase">La N1 · ${esc(city.name)} → ${esc(next.name)}</h3><canvas id="gare-map"></canvas></div>
       <div class="card panel">
         <h3>Sur le quai <small>${offers.length} personnes attendent</small></h3>
         <p class="hint">Le prix du voyage est payé à la montée. À l’arrivée, un passager content laisse un pourboire ; un passager secoué discute le prix.</p>
@@ -176,6 +182,8 @@ export function renderGare(ctx) {
       </div>
     </div>`;
 
+  const gm = el.querySelector('#gare-map');
+  if (gm && window.innerWidth > 900) drawFullMap(gm, { w: 228, h: 520, stage: run.stage, progress: 0 });
   for (const b of el.querySelectorAll('button.pax')) b.onclick = () => onToggle(+b.dataset.id);
   el.querySelector('#f10').onclick = () => onFuel(fuel10, price(fuel10));
   el.querySelector('#ffull').onclick = () => onFuel(fullL, price(fullL));
@@ -235,7 +243,7 @@ export function renderEnd({ win, reason, run, best, isRecord, onRestart, onShare
 }
 
 /* ------------------------------------------------------------ pause / modales */
-export function renderPause({ onResume, onRestart, onQuit }) {
+export function renderPause({ onResume, onRestart, onQuit, stage, progress }) {
   const el = $('#s-pause');
   el.innerHTML = `
     <div class="card sheet"><div class="stripe"></div><div class="inner">
@@ -247,7 +255,9 @@ export function renderPause({ onResume, onRestart, onQuit }) {
         <button class="btn ghost" id="p-restart">Recommencer l’étape</button>
         <button class="btn ghost" id="p-quit">Abandonner</button>
       </div>
+      <canvas id="pause-map" style="margin-top:14px;display:block;border-radius:8px"></canvas>
     </div></div>`;
+  drawFullMap(el.querySelector('#pause-map'), { w: Math.min(478, window.innerWidth - 74), h: 260, stage, progress, showNeighbors: false });
   el.querySelector('#p-resume').onclick = onResume;
   el.querySelector('#p-restart').onclick = onRestart;
   el.querySelector('#p-quit').onclick = onQuit;
@@ -341,3 +351,13 @@ export function radioUI() {
   };
 }
 export function radioVisible(on) { $('#radio').hidden = !on; }
+
+let miniT = 0;
+export function updateMiniMap(dt, stage, progress) {
+  miniT -= dt;
+  if (miniT > 0) return;
+  miniT = 0.12;
+  const c = $('#minimap');
+  if (!c || c.offsetParent === null) return;
+  drawMiniMap(c, { size: document.body.classList.contains('touch') ? 112 : 156, stage, progress });
+}

@@ -54,7 +54,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
 .btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
 .btn:focus-visible, .pax:focus-visible, .svc button:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
-.btn.ghost { background: var(--paper); }
+.btn.ghost { background: var(--paper); color: var(--ink); }
 .btn.green { background: var(--green); color: #fff; }
 .btn.red { background: var(--red); color: #fff; }
 .btn[disabled] { opacity: 0.45; pointer-events: none; }
@@ -104,7 +104,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* gare routière */
 #s-gare { background: linear-gradient(180deg, rgba(8,20,13,0.35), rgba(8,20,13,0.7)); }
-.gare { max-width: 1120px; margin: 0 auto; display: grid; gap: 14px; grid-template-columns: 1.35fr 1fr; align-items: start; }
+.gare { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; grid-template-columns: 250px 1.35fr 1fr; align-items: start; }
+.mapcard { padding: 10px; }
+.mapcard canvas { display: block; border-radius: 6px; }
+.title-map { position: absolute; right: 3vw; top: 50%; transform: translateY(-50%); border-radius: 14px; box-shadow: 8px 8px 0 rgba(0,0,0,0.45); border: 3px solid #fff; }
+@media (max-width: 1100px) { .title-map { display: none; } }
 .gare-head { grid-column: 1 / -1; overflow: hidden; }
 .gare-head .inner { padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-end; justify-content: space-between; }
 .gare-head h2 { margin: 4px 0 0; font: clamp(22px, 4vw, 34px)/1 var(--display); text-transform: uppercase; }
@@ -237,6 +241,8 @@ body.touch .kbd { display: none; }
   position: absolute; left: calc(10px + var(--safe-l)); right: calc(10px + var(--safe-r)); bottom: calc(10px + var(--safe-b));
   display: flex; justify-content: space-between; align-items: flex-end; gap: 10px;
 }
+.left-stack { display: grid; gap: 10px; justify-items: start; }
+#minimap { display: block; filter: drop-shadow(3px 3px 0 var(--ink)); }
 .gauges { padding: 10px 12px; display: grid; gap: 7px; width: 250px; }
 .gauges .g { display: grid; grid-template-columns: 62px 1fr 48px; gap: 8px; align-items: center; }
 .gauges span { font: 800 11px/1 var(--text); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -308,6 +314,7 @@ body.touch .hud-bottom { bottom: calc(130px + var(--safe-b)); }
 /* ------------------------------------------------------------ responsive */
 @media (max-width: 900px) {
   .gare { grid-template-columns: 1fr; }
+  .mapcard { display: none; }
   .routebar { display: none; }
   .hud-top { grid-template-columns: 1fr auto; }
   .hud-btns { top: calc(84px + var(--safe-t)); }
@@ -326,6 +333,7 @@ body.touch .hud-bottom { bottom: calc(130px + var(--safe-b)); }
   .toast { font-size: 13.5px; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
+  #minimap { display: none; }
   body.touch .hud-bottom { bottom: calc(10px + var(--safe-b)); left: 50%; transform: translateX(-50%); width: auto; gap: 10px; right: auto; }
   .gauges { width: 190px; }
   #toasts { top: calc(70px + var(--safe-t)); }

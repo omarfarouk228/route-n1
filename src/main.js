@@ -13,6 +13,7 @@ import { Sky, Rain, Clouds, Mountains, skyState, makeSkyState } from './sky.js';
 import { BIOMES } from './data.js';
 import { makeComposer } from './post.js';
 import { Radio } from './radio.js';
+import { Vendors } from './vendors.js';
 import * as UI from './ui.js';
 import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
 
@@ -167,6 +168,7 @@ function loadStage(i) {
   if (world) {
     scene.remove(world.group);
     world.traffic.dispose();
+    world.vendors.dispose();
     disposeGroup(world.group);
   }
   const road = new Road(STAGES[i], i, run.seed + i * 7919);
@@ -177,8 +179,9 @@ function loadStage(i) {
   const tg = new THREE.Group();
   group.add(tg);
   const traffic = new Traffic(tg, road, mulberry32(run.seed + i * 131), SHADOWS);
+  const vendors = new Vendors(group, SHADOWS);
   scene.add(group);
-  world = { road, group, traffic, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { road, group, traffic, vendors, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
 }
@@ -375,6 +378,18 @@ function updateDrive(dt) {
     if (player.s - n.s < 60) UI.toast(n.text, n.kind === 'warn' ? 'warn' : n.kind === 'landmark' ? 'big' : 'info', n.kind === 'landmark' ? 4500 : 3200);
   }
 
+  // vendeuses ambulantes
+  const nearStop = r.villages.some((v) => Math.abs(v.s - player.s) < (v.named ? 115 : 50))
+    || r.checkpoints.some((c) => Math.abs(c.s - player.s) < 30) || r.fuelStops.some((f) => Math.abs(f.s - player.s) < 20)
+    || player.s < 60 || player.s > r.length - 80;
+  for (const e of world.vendors.update(dt, r, player, nearStop, run.rng)) {
+    if (e.type === 'cry') UI.toast(`Une vendeuse : « ${e.text} »`, 'quote', 2600);
+    else if (e.type === 'sale' && run.passengers.length) {
+      soothe(14);
+      UI.toast('Tes passagers achètent à boire et à manger par la vitre : confort +', 'good', 2800);
+    }
+  }
+
   // trafic
   const hits = world.traffic.update(dt, player, hornNow, true);
   if (world.traffic.events.includes('oncomingHorn')) sound.farHorn();
@@ -474,6 +489,7 @@ function startDrive() {
   run.stageLog = [];
   player.reset(16, 1.9);
   world.traffic.clearAll();
+  world.vendors.reset();
   UI.show(null);
   hud(true);
   UI.clearToasts();
@@ -565,6 +581,7 @@ function setPause(on) {
     input.releaseAll();
     sound.silence();
     UI.renderPause({
+      stage: run.stage, progress: player.s / world.road.length,
       onResume: () => setPause(false),
       onRestart: restartStage,
       onQuit: () => { UI.modal('s-pause', false); paused = false; endGame(false, { title: 'Voyage abandonné', text: `Tu as garé le taxi à ${CITIES[run.reached].name}.` }); },
@@ -774,6 +791,7 @@ function frame(now) {
     updateDrive(dt);
     hudTimer -= dt;
     if (hudTimer <= 0 && state === 'drive') { UI.updateHud(hudData()); hudTimer = 0.1; }
+    if (state === 'drive') UI.updateMiniMap(dt, run.stage, player.s / world.road.length);
   } else if (!paused && state !== 'rescue') {
     world.traffic.update(dt, player, false, false);
   }
