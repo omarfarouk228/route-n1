@@ -155,7 +155,7 @@ export class Traffic {
         it.v += clamp(desired - it.v, -7 * dt, 2.2 * dt);
         // klaxon : le camion ou le zém se range à droite
         if (horn && it.s > P.s && it.s - P.s < 65 && Math.abs(it.x - P.x) < 2.4) {
-          it.tx = it.type === 'moto' ? 6.2 : 3.2;
+          it.tx = it.type === 'moto' ? 6.2 : 3.6;
           it.honkT = 7;
         }
         if (it.honkT > 0) { it.honkT -= dt; if (it.honkT <= 0) it.tx = it.baseX; }
