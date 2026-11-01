@@ -38,6 +38,7 @@ export class Player {
     this.throttle += (thr - this.throttle) * Math.min(1, dt * 5);
     let F = this.throttle * 3900 * Math.max(0, 1 - Math.max(0, this.v) / 38);
     F -= 0.85 * this.v * Math.abs(this.v) + 38 * this.v;
+    if (!thr && this.v > 0) F -= 150 * Math.min(this.v, 8) + 250; // frein moteur
     F -= mass * 9.81 * f.grade;
     const ax = Math.abs(this.x);
     this.surface = ax > SHOULDER ? 2 : ax > HALF_ROAD + 0.4 ? 1 : 0;

@@ -98,8 +98,9 @@ export const TRAITS = {
 const TRAIT_WEIGHTS = { commerce: 3, presse: 2, malade: 1.5, etudiant: 2, ancien: 1.2, chevre: 0.8, agent: 2 };
 
 let pid = 0;
-export function makeOffers(rng, cityIndex) {
+export function makeOffers(rng, cityIndex, aboard = []) {
   const offers = [];
+  const taken = new Set(aboard.map((p) => p.first));
   const n = 5 + Math.floor(rng() * 4);
   for (let k = 0; k < n; k++) {
     const maxTo = Math.min(CITIES.length - 1, cityIndex + 3);
@@ -110,14 +111,17 @@ export function makeOffers(rng, cityIndex) {
     const female = rng() < 0.5;
     const trait = weighted(rng, TRAIT_WEIGHTS);
     const T = TRAITS[trait];
-    let name = pick(rng, female ? FEMALE : MALE);
+    const pool = (female ? FEMALE : MALE).filter((x) => !taken.has(x));
+    const first = pick(rng, pool.length ? pool : female ? FEMALE : MALE);
+    taken.add(first);
+    let name = first;
     if (trait === 'ancien') name = (female ? 'Mémé ' : 'Papa ') + name;
     else if (trait === 'commerce' && female) name = 'Tantie ' + name;
     const bags = T.bags[0] + Math.floor(rng() * (T.bags[1] - T.bags[0] + 1));
     let km = 0;
     for (let i = cityIndex; i < to; i++) km += STAGES[i].km;
     const fare = round50(km * PRICES.farePerKm * T.fareMul * rand(rng, 0.9, 1.1) + bags * PRICES.bagPerHop * hop);
-    offers.push({ id: ++pid, name, female, trait, to, from: cityIndex, bags, fare, sat: 100, km });
+    offers.push({ id: ++pid, name, first, female, trait, to, from: cityIndex, bags, fare, sat: 100, km });
   }
   return offers.sort((a, b) => a.to - b.to);
 }
