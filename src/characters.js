@@ -77,7 +77,8 @@ float rgPattern(vec3 p, float f) {
   else if (t < 3.5) { float d = abs(g.x) + abs(g.y); m = smoothstep(0.36, 0.3, d) * smoothstep(0.12, 0.18, d); }
   else { m = max(step(0.62, fract(uv.y * 0.5)), step(0.82, fract(uv.x * 0.5)) * 0.7); }
   float fw = length(fwidth(uv));
-  return mix(m, 0.38, smoothstep(0.35, 0.9, fw));
+  // au loin, le motif s'efface au profit de la couleur dominante du tissu (un mélange des deux tirerait vers le gris)
+  return mix(m, 0.12, smoothstep(0.7, 1.6, fw));
 }
 `;
 
