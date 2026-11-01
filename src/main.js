@@ -170,7 +170,7 @@ document.getElementById('r-skip').onclick = () => radio.nextTrack();
 // radio repliable (repliée par défaut sur mobile) : repliée, il ne reste que la barre de lecture et la musique continue
 const radioEl = document.getElementById('radio');
 if (isTouch) radioEl.classList.add('min');
-function toggleRadioPanel() { const min = radioEl.classList.toggle('min'); radio.clipVisible(!min); }
+function toggleRadioPanel() { const min = radioEl.classList.toggle('min'); radio.clipVisible(!min); UI.fitTop(); }
 document.getElementById('r-m-audio').onclick = () => radio.setMode('audio');
 document.getElementById('r-m-clip').onclick = () => radio.setMode('clip');
 // un clic dans le lecteur Audiomack lui donne le focus clavier : on le détecte (lecture lancée) et on rend
@@ -956,6 +956,7 @@ function frame(now) {
 // mobile : le navigateur peut mettre le son en veille ; chaque toucher le réveille
 addEventListener('pointerdown', () => { if (sound.ctx && sound.ctx.state !== 'running') sound.ctx.resume(); }, { passive: true });
 
+addEventListener('resize', () => UI.fitTop());
 startTitle();
 requestAnimationFrame(frame);
 document.fonts?.ready.then(() => setTimeout(UI.loaded, 150));

@@ -23,12 +23,37 @@ export function hud(on) {
   $('#hud').hidden = !on;
   $('#radio').hidden = !on;
   $('#touch').hidden = !(on && document.body.classList.contains('touch'));
+  if (on) requestAnimationFrame(fitTop);
 }
 export function loaded() { $('#loading').classList.add('done'); }
 
 /* ------------------------------------------------------------ toasts */
 const toastsEl = () => $('#toasts');
+// téléphone en portrait : messages et alertes se placent juste sous la radio et les boutons du haut,
+// quelle que soit la hauteur de la radio (repliée, dépliée, lecteur Audio ou Clip)
+export function fitTop() {
+  const hud = $('#hud'), btns = $('.hud-btns'), radio = $('#radio');
+  if (!hud) return;
+  const portrait = document.body.classList.contains('touch') && innerWidth <= innerHeight;
+  if (!portrait) {
+    hud.style.removeProperty('--top-free');
+    btns.style.removeProperty('top');
+    radio.style.removeProperty('top');
+    return;
+  }
+  // empilement vertical : cadre de l'étape, boutons, radio, puis messages
+  const top = $('.hud-top');
+  let y = top.getBoundingClientRect().bottom + 8;
+  btns.style.top = Math.round(y) + 'px';
+  y += btns.getBoundingClientRect().height + 8;
+  if (!radio.hidden) {
+    radio.style.top = Math.round(y) + 'px';
+    y += radio.getBoundingClientRect().height + 8;
+  }
+  hud.style.setProperty('--top-free', Math.round(y) + 'px');
+}
 export function toast(html, kind = 'info', ms = 2800) {
+  fitTop();
   const box = toastsEl();
   while (box.children.length > 2) box.firstChild.remove();
   const el = document.createElement('div');
@@ -58,6 +83,7 @@ export function alert(a) {
   el.hidden = !a;
   $('#hud').classList.toggle('has-alert', !!a);
   if (!a) return;
+  fitTop();
   el.className = 'h-alert ' + a.kind;
   $('#h-al-t').textContent = a.text;
   $('#h-al-s').textContent = a.sub || '';
@@ -398,10 +424,11 @@ export function radioUI() {
       f.allow = 'autoplay; encrypted-media';
       f.loading = 'eager';
       host.appendChild(f);
+      requestAnimationFrame(fitTop);
     },
     get iframe() { return $('#r-am iframe'); },
     host: 'r-yt',
-    showVideo(on) { $('#r-video').hidden = !on; },
+    showVideo(on) { $('#r-video').hidden = !on; requestAnimationFrame(fitTop); },
     collapsed() { return $('#radio').classList.contains('min'); },
     render({ station, track, status, playing, muted, mode }) {
       const synth = !station || station.kind === 'synth';
@@ -422,10 +449,11 @@ export function radioUI() {
         : mode === 'clip' ? 'Clips officiels via YouTube : le clip se met en pause quand la radio est repliée.'
         : playing ? 'Audio seul via Audiomack · le titre suivant se charge à la fin du morceau.'
         : 'Appuie sur ▶ dans le lecteur pour écouter (audio seul, via Audiomack).';
+      requestAnimationFrame(fitTop);
     },
   };
 }
-export function radioVisible(on) { $('#radio').hidden = !on; }
+export function radioVisible(on) { $('#radio').hidden = !on; fitTop(); }
 
 let miniT = 0;
 export function updateMiniMap(dt, stage, progress) {

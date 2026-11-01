@@ -409,7 +409,7 @@ body.touch .r-video, body.touch .r-video iframe { width: 194px; height: 180px; }
 @media (prefers-reduced-motion: reduce) {
   .screen.on, .toast, .bn, .ledger .l { animation: none; }
 }
-body.touch #toasts { top: calc(206px + var(--safe-t)); }
+body.touch #toasts { top: var(--top-free, calc(206px + var(--safe-t))); }
 
 /* alerte persistante : contrôle en cours, péage */
 .h-alert { position: absolute; top: calc(118px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
@@ -424,7 +424,7 @@ body.touch #toasts { top: calc(206px + var(--safe-t)); }
 .h-alert.toll .h-al-dot { background: #f4c430; box-shadow: 0 0 12px #f4c430; }
 @keyframes gyro { 0% { background: #2f6bff; box-shadow: 0 0 14px #2f6bff; } 50% { background: #ff3b3b; box-shadow: 0 0 14px #ff3b3b; } }
 @keyframes alIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
-body.touch .h-alert { top: calc(96px + var(--safe-t)); padding: 8px 12px; }
+body.touch .h-alert { top: var(--top-free, calc(96px + var(--safe-t))); padding: 8px 12px; }
 body.touch .h-alert b { font-size: 13px; }
 
 /* les messages descendent sous l'alerte persistante pour ne jamais la chevaucher */
@@ -448,10 +448,10 @@ body.touch #hud.has-alert #toasts { transform: translate(-50%, 64px); }
   .hud-btns button { width: 34px; height: 34px; }
   .hud-btns svg { width: 16px; height: 16px; }
   #minimap { display: none; }
-  /* le centre reste dégagé pour voir le taxi : jauges en haut à gauche, compteur au-dessus de Frein et Gaz */
+  /* le centre reste dégagé pour voir le taxi : jauges en haut à gauche, compteur en bas à côté des flèches, la radio garde la droite */
   body.touch .hud-bottom { position: static; transform: none; }
   body.touch .left-stack { position: absolute; top: calc(96px + var(--safe-t)); left: calc(10px + var(--safe-l)); }
-  body.touch .speedo { position: absolute; right: calc(16px + var(--safe-r)); bottom: calc(94px + var(--safe-b)); }
+  body.touch .speedo { position: absolute; left: calc(158px + var(--safe-l)); bottom: calc(8px + var(--safe-b)); }
   .gauges { width: 158px; padding: 7px 9px; gap: 6px; }
   .gauges .g { grid-template-columns: 14px 1fr 36px; gap: 6px; }
   .gauges svg { width: 14px; height: 14px; }
