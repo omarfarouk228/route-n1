@@ -237,14 +237,16 @@ export class Road {
     }
     this.fuelStops = this.villages.filter((v) => v.fuel).map((v) => ({ s: v.s + 28, side: 1, warned: false }));
 
-    // contrôles routiers (jamais dans la faille)
+    // postes de péage (positions réelles) : arrêt obligatoire au guichet
+    this.tolls = (st.tolls || []).map((t) => ({ s: t.t * L, name: t.name, paid: false, wait: 0, warned: false, hit: 0 }));
+    // contrôles routiers (jamais dans la faille ni près d'un péage) ; certains demandent les papiers
     this.checkpoints = [];
     const nCp = L > 2500 && rng() < 0.5 ? 2 : 1;
     for (let k = 0; k < nCp; k++) {
       for (let tries = 0; tries < 20; tries++) {
         const cs = L * rand(rng, 0.25, 0.85);
-        const ok = !this.biomeAt(cs).cliff && !this.checkpoints.some((c) => Math.abs(c.s - cs) < 500) && !this.villages.some((v) => Math.abs(v.s - cs) < 90);
-        if (ok) { this.checkpoints.push({ s: cs, done: false, warned: false, open: 0 }); break; }
+        const ok = !this.biomeAt(cs).cliff && !this.checkpoints.some((c) => Math.abs(c.s - cs) < 500) && !this.villages.some((v) => Math.abs(v.s - cs) < 90) && !this.tolls.some((t) => Math.abs(t.s - cs) < 400);
+        if (ok) { this.checkpoints.push({ s: cs, done: false, warned: false, open: 0, papers: rng() < 0.45, wait: 0, cleared: false }); break; }
       }
     }
 
@@ -292,7 +294,14 @@ export class Road {
 
     // ralentisseurs à l'entrée et à la sortie des agglomérations
     this.bumps = [];
-    for (const v of this.villages) for (const d of [-1, 1]) this.bumps.push({ s: v.s + d * (span(v) + 6), hit: false });
+    // sur la vraie N1, les dos-d'âne se concentrent dans certaines villes ; rares en rase campagne et dans le nord
+    for (const v of this.villages) {
+      const key = this.biomeKey(clamp(v.s, 0, L));
+      const south = key === 'urbain' || key === 'cote' || key === 'plaine' || key === 'plateaux';
+      const p = v.named ? (south ? 0.75 : 0.45) : (south ? 0.2 : 0.08);
+      if (rng() < p) for (const d of [-1, 1]) this.bumps.push({ s: v.s + d * (span(v) + 6), hit: false });
+    }
+    this.bumps = this.bumps.filter((b) => !this.tolls.some((t) => Math.abs(t.s - b.s) < 60));
     this.bumps.sort((a, b) => a.s - b.s);
 
     // traversées d'animaux près des villages
@@ -314,6 +323,7 @@ export class Road {
       this.notes.push({ s: fs - 120, text: `${st.landmark} : forte montée, ligne continue, interdit de doubler`, kind: 'landmark' });
     }
     for (const c of this.checkpoints) this.notes.push({ s: c.s - 260, text: 'Contrôle routier dans 250 m : passe sous 20 km/h', kind: 'warn' });
+    for (const t of this.tolls) this.notes.push({ s: t.s - 320, text: `Péage de ${t.name} dans 300 m : arrêt obligatoire, 500 F`, kind: 'warn' });
     for (const f of this.fuelStops) this.notes.push({ s: f.s - 220, text: 'Vendeuse d’essence à 200 m : arrête-toi sur le bas-côté droit', kind: 'fuel' });
     for (const r of this.rivers) if (r.name) this.notes.push({ s: r.s - 90, text: `Pont sur le ${r.name}`, kind: 'town' });
     for (const v of this.villages) if (!v.named) this.notes.push({ s: v.s - span(v) - 60, text: 'Village : ralentisseurs, enfants et animaux', kind: 'info', soft: true });

@@ -175,6 +175,13 @@ export class Traffic {
           const d = cp.s - it.s;
           if (d > -3 && d < 45) desired = Math.min(desired, 4.5);
         }
+        // péage : arrêt au guichet puis passage
+        for (const t of r.tolls) {
+          const d = t.s - 1.4 - it.len / 2 - it.s;
+          if (it.tollOk === t || d < -1 || d > 60) continue;
+          desired = Math.min(desired, Math.max(0, d * 0.45));
+          if (d < 1.2 && it.v < 0.8) { it.tollT = (it.tollT || 0) + dt; if (it.tollT > 2.2) { it.tollOk = t; it.tollT = 0; } }
+        }
         it.v += clamp(desired - it.v, -7 * dt, 2.2 * dt);
         // klaxon : le camion ou le zém se range à droite
         if (horn && it.s > P.s && it.s - P.s < 65 && Math.abs(it.x - P.x) < 2.4) {
@@ -184,6 +191,7 @@ export class Traffic {
         if (it.honkT > 0) { it.honkT -= dt; if (it.honkT <= 0) it.tx = it.baseX; }
       } else {
         // en face : se serre et klaxonne si le joueur est sur sa voie
+        for (const t of r.tolls) { const dt2 = it.s - t.s; if (dt2 > -4 && dt2 < 40) it.v = Math.max(it.v, -Math.max(2.5, dt2 * 0.35)); else if (dt2 < -4 && dt2 > -30) it.v = Math.max(it.baseV, it.v - 4 * dt); }
         const d = it.s - P.s;
         if (P.x < 0.6 && d > 0 && d < 95 && it.type !== 'moto') {
           it.tx = -3.5;

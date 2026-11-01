@@ -25,7 +25,8 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 | Profils | Commerçant·e (colis), pressé·e (bonus à l'heure), mal des transports, étudiant·e, ancien·ne (gros pourboire), passager avec une chèvre, fonctionnaire. |
 | Essence | 50 L. Plein à la gare (650 F/L) ou chez les vendeuses au bord de la route (750 F/L) : arrête-toi sur le bas-côté droit. |
 | État du taxi | Nids-de-poule, accrochages, sorties de route. À 0 %, le voyage s'arrête. |
-| Contrôles routiers | Au-dessus de 20 km/h : amende de 5 000 F. |
+| Contrôles routiers | Un bandeau « Contrôle en cours » s'affiche à l'approche. Passage au ralenti (au-dessus de 20 km/h : amende de 5 000 F) ou contrôle des papiers : barrière fermée, arrêt obligatoire. |
+| Péages | Postes réels de la N1 : Davié, Sotouboua, Alédjo, Mango. Arrêt obligatoire au guichet, 500 F, puis la barrière se lève. Si tu la percutes, le taxi s'abîme. |
 | Météo | Pluie (moins d'adhérence), harmattan (poussière) ; cycle jour et nuit avec phares. |
 
 ## Nouveautés
@@ -38,7 +39,9 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 - **Personnages** : silhouettes modelées (visage, mains, pieds), pagnes et foulards en **motifs wax** dessinés dans le shader, porteuses de bassines, femmes avec bébé au dos, hommes en grand boubou, écoliers en kaki, policiers en béret. Animation de marche (jambes, genoux, bras), passants qui circulent sur l'accotement et s'écartent du taxi, vendeuses qui accourent aux vitres quand tu t'arrêtes (le confort des passagers remonte).
 - **Animaux** : chèvres naines aux robes pie avec cornes et barbiche, moutons Djallonké, zébus peuls à bosse et cornes en lyre (avec leur bouvier), poules qui picorent ; ils marchent en traversant la route, broutent et remuent la queue.
 - **Rendu** : ombres portées, nuages, montagnes à l'horizon, étalonnage et bloom, résolution dynamique pour tenir 60 images/s.
-- **Ralentisseurs** à l'entrée des villages : à franchir au pas.
+- **Ralentisseurs** : surtout dans certaines villes du sud, rares en rase campagne et dans le nord, comme sur la vraie N1.
+- **Péages** aux emplacements officiels de la SAFER projetés sur le tracé : auvent, guichets, barrières, file des camions qui paient avant toi.
+- **Échanges à la vitre** : quand tu t'arrêtes, chaque vendeuse tend sa marchandise ; un passager sort le bras avec un billet et récupère sachet d'eau, pain, bananes ou arachides.
 
 ## Le trajet
 

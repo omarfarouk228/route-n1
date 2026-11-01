@@ -796,6 +796,31 @@ export function motoGeo() {
 export { goatGeo, zebuGeo } from './characters.js';
 
 /* ---------------------------------------------------------------- mobilier routier */
+// poste de péage : auvent sur toute la largeur, îlots, cabines vitrées, bandes d'arrêt
+export function tollCanopy() {
+  const p = [];
+  const W = 15.4;
+  p.push(box(W, 0.5, 5.6, '#e9e6dc', { y: 5.75 }));
+  p.push(box(W + 0.2, 0.18, 5.8, '#c8322b', { y: 5.45 }));
+  p.push(box(W - 0.6, 0.05, 5.0, '#f4f0e0', { y: 5.48 }));
+  for (const x of [-5.6, 0, 5.6]) for (const z of [-2.2, 2.2]) p.push(box(0.4, 5.5, 0.4, '#d9d2c0', { x, y: 2.75, z }));
+  for (const x of [-4.9, 4.9]) {
+    // îlot et cabine
+    p.push(box(1.6, 0.25, 8, '#c9c4b8', { x, y: 0.12 }));
+    p.push(box(1.6, 0.06, 0.6, '#f4c430', { x, y: 0.27, z: -4 }));
+    p.push(box(1.6, 0.06, 0.6, '#16161a', { x, y: 0.27, z: -3.4 }));
+    p.push(box(1.3, 2.4, 1.8, '#f0ece2', { x: x + Math.sign(x) * 0.05, y: 1.45 }));
+    p.push(box(1.36, 0.9, 1.5, '#26343f', { x: x + Math.sign(x) * 0.05, y: 1.75 }));
+    p.push(box(1.5, 0.12, 2.0, '#c8322b', { x, y: 2.7 }));
+    p.push(cyl(0.3, 0.3, 0.08, 10, '#c8322b', { x: x - Math.sign(x) * 0.9, y: 3.6, z: -0.6, rx: PI / 2 }));
+  }
+  // lignes d'arrêt sur la chaussée
+  for (const x of [-1.95, 1.95]) p.push(box(3.6, 0.03, 0.4, '#f4f0e0', { x, y: 0.02, z: x > 0 ? 3.4 : -3.4 }));
+  // ralentisseurs à l'approche
+  for (const z of [-14, -9, 9, 14]) p.push(box(3.6, 0.06, 0.5, '#f4c430', { x: z < 0 ? -1.95 : 1.95, y: 0.03, z }));
+  return merge(p);
+}
+
 export function checkpointCabin() {
   return merge([
     box(2.2, 2.4, 2.2, '#e8e2d0', { y: 1.2 }),

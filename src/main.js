@@ -15,7 +15,7 @@ import { makeComposer } from './post.js';
 import { Radio } from './radio.js';
 import { Vendors } from './vendors.js';
 import { Walkers } from './walkers.js';
-import { CHAR_U } from './characters.js';
+import { CHAR_U, CHAR_MAT, armGeo, noteGeo, itemGeo, VENDOR_GOODS } from './characters.js';
 import * as UI from './ui.js';
 import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
 
@@ -99,6 +99,31 @@ function buildTaxi(cfg) {
   const spec = VEHICLES[cfg.model];
   setCapacity(spec);
   player.len = spec.len; player.wid = spec.wid;
+  // bras de passager qui sort par la vitre pour payer les vendeuses
+  const hand = new THREE.Group();
+  const arm = new THREE.Mesh(armGeo(), CHAR_MAT);
+  const note = new THREE.Mesh(noteGeo(), CHAR_MAT);
+  hand.add(arm, note);
+  const items = {};
+  for (const k of new Set(VENDOR_GOODS)) { const m = new THREE.Mesh(itemGeo(k), CHAR_MAT); m.position.set(0.33, 0.06, 0); m.visible = false; items[k] = m; hand.add(m); }
+  hand.visible = false;
+  taxi.body.add(hand);
+  taxi.hand = { group: hand, note, items, ext: 0, side: 1, y: taxi.rackY * 0.73, half: spec.wid / 2 };
+}
+
+function updateWindowHand(dt) {
+  const H = taxi.hand, st = world.vendors.hand;
+  const target = st ? st.extend : 0;
+  H.ext += (target - H.ext) * Math.min(1, dt * 12);
+  if (st) H.side = st.side;
+  H.group.visible = H.ext > 0.02;
+  if (!H.group.visible) return;
+  // côté droit de la route = -x local du véhicule
+  const sx = -H.side;
+  H.group.rotation.y = sx > 0 ? 0 : Math.PI;
+  H.group.position.set(sx * (H.half - 0.32 + H.ext * 0.36), H.y, clamp(st ? st.z * 0.5 : 0.2, -0.6, 0.9));
+  H.note.visible = !st || st.holding === 'note';
+  for (const [k, m] of Object.entries(H.items)) m.visible = !!st && st.holding === 'item' && st.kind === k;
 }
 
 // showroom du garage : plateau tournant, sol d'atelier, éclairage de studio
@@ -202,7 +227,7 @@ function loadStage(i) {
   const vendors = new Vendors(group, SHADOWS);
   const walkers = new Walkers(group, SHADOWS, isTouch ? 5 : 9);
   scene.add(group);
-  world = { road, group, traffic, vendors, walkers, lod: scen.lod, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { road, group, traffic, vendors, walkers, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
 }
@@ -343,11 +368,39 @@ function updateDrive(dt) {
     if (ev.lat > 6.2 && run.bags > 0 && run.rng() < dt * 0.5) loseBag();
   } else if (ev.lat < 2 && ev.surface === 0 && !ev.hardBrake) soothe(dt * 0.5);
 
-  // contrôles routiers
+  // contrôles routiers : passage au ralenti, ou contrôle des papiers (arrêt obligatoire, barrière fermée)
+  let alert = null;
+  const halfLen = (player.len || 4.5) / 2;
   for (const c of world.checkpoints) {
     const cp = c.cp;
     const d = cp.s - player.s;
-    let open = d > -8 && d < 30;
+    if (d < 170 && d > -15) {
+      if (!cp.warned) {
+        cp.warned = true;
+        UI.banner('Contrôle routier', cp.papers ? 'Contrôle des papiers' : 'Gendarmerie', cp.papers ? 'Arrête-toi à la barrière' : 'Passe sous 20 km/h', 2600);
+        sound.whistle();
+      }
+      alert = cp.papers && !cp.cleared
+        ? { kind: 'police', text: 'Contrôle en cours', sub: d > 12 ? `Arrête-toi à la barrière · ${Math.max(0, Math.round(d))} m` : speed < 0.6 ? 'Le gendarme vérifie tes papiers…' : 'Arrête-toi' }
+        : { kind: 'police', text: 'Contrôle en cours', sub: cp.done ? 'C’est passé, bonne route' : `Ralentis sous 20 km/h · ${Math.round(speed * 3.6)} km/h` };
+    }
+    // contrôle des papiers : la barrière reste fermée tant qu'on ne s'est pas arrêté
+    if (cp.papers && !cp.cleared) {
+      const stopAt = cp.s - 1 - halfLen;
+      if (player.s > stopAt && player.x > -0.5) {
+        if (speed > 2.5) { damage(speed * 0.5); UI.toast('Tu as forcé la barrière du contrôle ! Amende.', 'bad', 3200); run.money -= PRICES.fine; stats().fines++; log('Barrière de contrôle forcée (amende)', -PRICES.fine); sound.crash(0.6); cp.cleared = true; cp.done = true; }
+        else { player.s = stopAt; player.v = Math.min(player.v, 0); }
+      }
+      if (d < 14 && d > 0 && speed < 0.6) {
+        cp.wait += dt;
+        if (cp.wait > 2.6) {
+          cp.cleared = true; cp.done = true;
+          UI.toast('Gendarme : « Papiers du véhicule… C’est bon, bonne route chauffeur. »', 'good', 3200);
+          sound.ok();
+        }
+      }
+    }
+    let open = cp.papers ? cp.cleared && d > -8 : d > -8 && d < 30;
     if (!open) for (const it of world.traffic.items) if (it.s > cp.s - 30 && it.s < cp.s + 8) { open = true; break; }
     c.pivot.rotation.z += ((open ? 1.35 : 0) - c.pivot.rotation.z) * Math.min(1, dt * 3);
     if (!cp.done && d < 0) {
@@ -365,6 +418,44 @@ function updateDrive(dt) {
       }
     }
   }
+
+  // postes de péage : arrêt obligatoire au guichet, 500 F
+  for (const c of world.tolls) {
+    const t = c.toll;
+    const d = t.s - player.s;
+    if (d < 140 && d > -10) {
+      if (!t.warned) { t.warned = true; UI.banner('Poste de péage', t.name, 'Arrêt obligatoire au guichet · 500 F', 2600); }
+      alert = { kind: 'toll', text: `Péage de ${t.name}`, sub: t.paid ? 'Payé · bonne route' : d > 14 ? `Arrêt obligatoire · ${Math.round(d)} m` : speed < 0.6 ? 'Paiement au guichet…' : 'Arrête-toi au guichet' };
+    }
+    if (!t.paid) {
+      const stopAt = t.s - 1.4 - halfLen;
+      if (player.s > stopAt && Math.abs(player.x) < 4.2) {
+        if (speed > 2.5 && t.hit <= 0) {
+          damage(3 + speed * 0.6); annoy(8);
+          UI.toast('Bam ! Tu as percuté la barrière du péage.', 'bad', 2600);
+          sound.crash(0.6); t.hit = 2;
+        }
+        player.s = stopAt; player.v = Math.min(player.v, 0);
+      }
+      if (t.hit > 0) t.hit -= dt;
+      if (d < 16 && d > 0 && speed < 0.6 && player.x > -0.5) {
+        t.wait += dt;
+        if (t.wait > 1.4) {
+          t.paid = true;
+          run.money -= PRICES.toll;
+          log(`Péage de ${t.name}`, -PRICES.toll);
+          sound.coin();
+          UI.toast(`Péage de ${t.name} : ${fmtMoney(PRICES.toll)} payés. La barrière se lève.`, 'info', 2800);
+        }
+      }
+    }
+    // barrières : la nôtre s'ouvre une fois payé ; celle d'en face pour le trafic
+    const ours = t.paid && d > -10 || world.traffic.items.some((it) => it.dir === 1 && it.tollOk === t && it.s > t.s - 8 && it.s < t.s + 6);
+    const theirs = world.traffic.items.some((it) => it.dir === -1 && it.s > t.s - 6 && it.s < t.s + 10);
+    c.pivots[0].rotation.z += ((ours ? 1.35 : 0) - c.pivots[0].rotation.z) * Math.min(1, dt * 3);
+    c.pivots[1].rotation.z += ((theirs ? 1.35 : 0) - c.pivots[1].rotation.z) * Math.min(1, dt * 3);
+  }
+  UI.alert(alert);
 
   // vendeuses d'essence
   let fuelling = false;
@@ -404,15 +495,18 @@ function updateDrive(dt) {
 
   // vendeuses ambulantes
   const nearStop = r.villages.some((v) => Math.abs(v.s - player.s) < (v.named ? 115 : 50))
-    || r.checkpoints.some((c) => Math.abs(c.s - player.s) < 30) || r.fuelStops.some((f) => Math.abs(f.s - player.s) < 20)
+    || r.checkpoints.some((c) => Math.abs(c.s - player.s) < 30) || r.tolls.some((t) => Math.abs(t.s - player.s) < 30) || r.fuelStops.some((f) => Math.abs(f.s - player.s) < 20)
     || player.s < 60 || player.s > r.length - 80;
+  player.pax = run.passengers.length;
   for (const e of world.vendors.update(dt, r, player, nearStop, run.rng)) {
     if (e.type === 'cry') UI.toast(`Une vendeuse : « ${e.text} »`, 'quote', 2600);
-    else if (e.type === 'sale' && run.passengers.length) {
-      soothe(14);
-      UI.toast('Tes passagers achètent à boire et à manger par la vitre : confort +', 'good', 2800);
+    else if (e.type === 'coin') { sound.coin(); soothe(5); }
+    else if (e.type === 'sale' && e.bought) {
+      soothe(6);
+      UI.toast('Tes passagers ont acheté à boire et à manger par la vitre : confort +', 'good', 2800);
     }
   }
+  updateWindowHand(dt);
 
   world.walkers.update(dt, r, player, run.rng, r.biomeAt(clamp(player.s, 0, r.length)).traffic || 1);
 
@@ -438,6 +532,7 @@ function updateDrive(dt) {
 let radioStarted = false;
 function hud(on) {
   UI.hud(on);
+  if (!on) UI.alert(null);
   if (on && !radioStarted) {
     radioStarted = true;
     if (radio.saved && radio.saved.station >= 0) radio.restore();

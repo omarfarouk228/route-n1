@@ -20,6 +20,7 @@ uniform float uTime;
 uniform float uPhase;
 uniform float uWalk;
 uniform float uSeed;
+uniform float uReach;
 varying vec3 vObj;
 varying vec3 vC2;
 varying float vFab;
@@ -40,7 +41,7 @@ vec4 rgAngles(float part) {
   float hip = 0.0, knee = 0.0, yaw = 0.0, pitch = 0.0;
   if (part == 1.0 || part == 7.0) { hip = A * sin(ph) * w; knee = A * 1.4 * max(0.0, cos(ph)) * w; }
   else if (part == 2.0 || part == 8.0) { hip = -A * sin(ph) * w; knee = A * 1.4 * max(0.0, -cos(ph)) * w; }
-  else if (part == 3.0) hip = -A * sin(ph) * w + idle * 0.06 * sin(uTime * 1.3 + seed);
+  else if (part == 3.0) hip = -A * sin(ph) * w + idle * 0.06 * sin(uTime * 1.3 + seed) + uReach * 1.35;
   else if (part == 4.0) hip = A * sin(ph) * w + idle * 0.06 * sin(uTime * 1.1 + seed * 1.7);
   else if (part == 5.0) yaw = A * idle * (0.7 * sin(uTime * 0.31 + seed) + 0.3 * sin(uTime * 0.83 + seed * 2.3));
   else if (part == 6.0) pitch = A * idle * smoothstep(0.0, 0.6, sin(uTime * 0.45 * rigB.y + seed)) + w * 0.06 * sin(ph * 2.0);
@@ -93,7 +94,7 @@ function patch(sh) {
 // Un matériau par personnage animé (phase de marche propre) ; tous partagent le même programme GPU.
 export function makeCharMat() {
   const m = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const u = { uPhase: { value: 0 }, uWalk: { value: 0 }, uSeed: { value: Math.random() * 6.28 } };
+  const u = { uPhase: { value: 0 }, uWalk: { value: 0 }, uSeed: { value: Math.random() * 6.28 }, uReach: { value: 0 } };
   m.userData.u = u;
   m.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, u, { uTime: CHAR_U.uTime }); patch(sh); };
   m.customProgramCacheKey = () => 'n1char';
@@ -498,3 +499,25 @@ export const chickenGeo = (i = 0) => cached('chick' + (i % 3), () => {
   p.push(S(0.018, '#c8322b', { y: 0.36, z: 0.18 }, 0));
   return merge(p);
 });
+
+/* ------------------------------------------------------------ échanges à la vitre */
+// avant-bras de passager qui sort par la vitre (le long de +x), main ouverte
+export const armGeo = (skin = SKINS[1], sleeve = '#2f78a8') => cached('arm' + skin + sleeve, () => {
+  rig({});
+  return merge([
+    L([-0.25, 0, 0], [0.02, 0, 0], 0.058, 0.055, sleeve, 7),
+    L([0.02, 0, 0], [0.26, 0.01, 0], 0.042, 0.035, skin, 7),
+    S(0.048, skin, { x: 0.31, y: 0.01, sx: 1.3, sy: 0.6, sz: 1.0 }),
+  ]);
+});
+// billet de banque CFA (dans la main du passager)
+export const noteGeo = () => cached('note', () => { rig({}); return merge([B(0.14, 0.004, 0.07, '#5a8f5a', { x: 0.34, y: 0.04 }), B(0.05, 0.005, 0.05, '#e8d9a8', { x: 0.36, y: 0.042 })]); });
+// marchandise tendue par la vendeuse : sachet d'eau, pain, bananes
+export const itemGeo = (kind) => cached('item' + kind, () => {
+  rig({});
+  if (kind === 'bread') return merge([C(0.045, 0.05, 0.36, 7, '#d29a52', { rz: PI / 2 })]);
+  if (kind === 'banana') return merge([C(0.03, 0.025, 0.2, 6, '#e7c63a', { rz: 1.2, x: -0.02 }), C(0.03, 0.025, 0.2, 6, '#d9b52c', { rz: 1.4, y: 0.03 }), C(0.03, 0.025, 0.2, 6, '#e7c63a', { rz: 1.8, x: 0.02 })]);
+  if (kind === 'peanut') return merge([C(0.05, 0.06, 0.14, 8, '#f2efe6'), S(0.05, '#c99a5c', { y: 0.07, sy: 0.5 })]);
+  return merge([B(0.12, 0.05, 0.17, '#e8f4fb'), B(0.124, 0.052, 0.02, '#2f78a8', { z: 0.05 })]);
+});
+export const VENDOR_GOODS = VENDOR_SPECS.map((v) => v.goods);

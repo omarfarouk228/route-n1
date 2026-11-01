@@ -21,7 +21,7 @@ function geos() {
     building2a: M.building2('#e8d9b8', '#2f78a8'), building2b: M.building2('#f0c9a0', '#0f5c3c'), building2c: M.building2('#dfe6e2', '#c8322b'),
     church: M.church(), mosque: M.mosque(), school: M.school(), kioskA: M.kiosk('#2f78a8'), kioskB: M.kiosk('#e9b53a'), kioskC: M.kiosk('#c8322b'),
     station: M.fuelStation(), tower: M.tower(), flagpole: M.flagpole(),
-    stall: M.stall(), fuel: M.fuelStand(), pole: M.pole(), shelter: M.shelter(), taxi: M.taxiStatic(), cabin: M.checkpointCabin(),
+    tollCanopy: M.tollCanopy(), stall: M.stall(), fuel: M.fuelStand(), pole: M.pole(), shelter: M.shelter(), taxi: M.taxiStatic(), cabin: M.checkpointCabin(),
     yamPile: M.yamPile(), charcoal: M.charcoal(), firewood: M.firewood(), basins: M.basins(), moto: M.motoParked(),
   };
   for (let i = 0; i < M.PEOPLE_VARIANTS; i++) GEO['person' + i] = M.person(i);
@@ -169,7 +169,9 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
   const signQuads = []; // [x,y,z]*4 + cellule
   const flags = [];
 
-  const place = (type, s, off, { scale = 1, yaw = 0, face = false, onRoad = false, sy = 1 } = {}) => {
+  const tollZones = road.tolls.map((t) => t.s);
+  const place = (type, s, off, { scale = 1, yaw = 0, face = false, onRoad = false, sy = 1, force = false } = {}) => {
+    if (!force && Math.abs(off) < 18 && tollZones.some((ts) => Math.abs(ts - s) < 34)) return 0;
     if (onRoad) road.toWorld(s, off, _p); else road.groundAt(s, off, _p);
     const h = road.headingAt(s);
     const ry = face ? h + (off > 0 ? Math.PI / 2 : -Math.PI / 2) + yaw : yaw;
@@ -201,7 +203,7 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     flags.push({ pos: _p.clone(), ry: road.headingAt(s) + Math.PI / 2 });
   };
 
-  const busy = [];
+  const busy = road.tolls.map((t) => [t.s - 45, t.s + 45]);
   const isBusy = (s) => busy.some(([a, b]) => s > a && s < b);
   const nearRiver = (s, pad = 0) => road.rivers.some((r) => Math.abs(r.s - s) < r.w / 2 + 6 + pad);
 
@@ -520,7 +522,52 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     return { cp, pivot };
   });
 
-  return { group, checkpoints, lod };
+  /* --- postes de péage ----------------------------------------------------- */
+  const tolls = road.tolls.map((t) => {
+    const h = road.headingAt(t.s);
+    const root = new THREE.Group();
+    road.toWorld(t.s, 0, root.position);
+    root.rotation.y = h;
+    group.add(root);
+    // repère local : +z vers l'avant de la route, -x vers la droite (côté du taxi)
+    const add = (geo, mat, x, y, z, cast = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadows && cast; m.receiveShadow = shadows; root.add(m); return m; };
+    add(G.tollCanopy, MAT, 0, 0, 0);
+    // fronton lumineux avec le nom du poste
+    const fr = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 1.1), new THREE.MeshBasicMaterial({ map: signTexture([`PÉAGE DE ${t.name.toUpperCase()}`], { bg: '#16161a', fg: '#f4c430', border: '#f4c430' }) }));
+    fr.position.set(0, 6.05, -2.62);
+    fr.rotation.y = Math.PI;
+    root.add(fr);
+    const fr2 = fr.clone(); fr2.position.z = 2.62; fr2.rotation.y = 0; root.add(fr2);
+    // barrières (la nôtre à droite, celle d'en face à gauche)
+    const pivots = [];
+    for (const side of [-1, 1]) {
+      const holder = new THREE.Group();
+      holder.position.set(side * -3.9, 0.95, side * -1.2);
+      if (side < 0) holder.rotation.y = Math.PI;
+      const pivot = new THREE.Group();
+      pivot.add(new THREE.Mesh(M.barrierGeo(3.7), MAT));
+      holder.add(pivot);
+      root.add(holder);
+      pivots.push(pivot);
+    }
+    // caissier à son guichet et agent de la SAFER
+    const cashier = new THREE.Mesh(G.police, CH.CHAR_MAT);
+    cashier.position.set(-4.35, 0.25, 0.75); cashier.rotation.y = Math.PI / 2;
+    root.add(cashier);
+    const agent = new THREE.Mesh(G['person' + 10], CH.CHAR_MAT);
+    agent.position.set(-5.2, 0, -3.2); agent.rotation.y = Math.PI * 0.85;
+    root.add(agent);
+    // panneaux d'approche
+    for (const [ds, txt] of [[-300, ['PÉAGE', '300 m']], [-120, ['PÉAGE', 'Arrêt obligatoire']]]) {
+      const sign = makeSign(txt, { bg: '#2f5f9f', fg: '#ffffff', border: '#ffffff' }, [2.4, 1.2], 1.3);
+      road.groundAt(t.s + ds, 7.4, sign.position);
+      sign.rotation.y = road.headingAt(t.s + ds) + Math.PI - 0.25;
+      group.add(sign);
+    }
+    return { toll: t, pivots };
+  });
+
+  return { group, checkpoints, tolls, lod };
 }
 
 // masque les îlots de personnages et d'animaux trop loin de la caméra

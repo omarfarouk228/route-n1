@@ -48,6 +48,20 @@ export function banner(kicker, title, sub = '', ms = 2800) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 520); }, ms);
 }
 
+/* ------------------------------------------------------------ alerte persistante (contrôle en cours, péage) */
+let alertKey = '';
+export function alert(a) {
+  const el = $('#h-alert');
+  const key = a ? a.kind + a.text + a.sub : '';
+  if (key === alertKey) return;
+  alertKey = key;
+  el.hidden = !a;
+  if (!a) return;
+  el.className = 'h-alert ' + a.kind;
+  $('#h-al-t').textContent = a.text;
+  $('#h-al-s').textContent = a.sub || '';
+}
+
 /* ------------------------------------------------------------ HUD */
 let citiesBuilt = false;
 const cityPos = (() => {

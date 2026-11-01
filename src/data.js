@@ -1,5 +1,5 @@
 import { pick, rand, round50, weighted } from './util.js';
-import { stageKm, tOf } from './geo.js';
+import { stageKm, tOf, kmOf, STAGE_CITIES } from './geo.js';
 
 // Villes-étapes de la N1, du sud au nord.
 export const CITIES = [
@@ -40,7 +40,7 @@ export const STAGES = [
   {
     km: stageKm(4), length: 3000, rain: 0.05, harmattan: 0.35,
     zones: [{ until: 0.22, biome: 'kabye' }, { until: 1, biome: 'savane' }],
-    towns: [town('Kantè', 4)], rivers: [{ t: 0.955, name: 'Oti' }],
+    towns: [town('Kantè', 4)], rivers: [{ t: 0.93, name: 'Oti' }],
   },
   {
     km: stageKm(5), length: 2400, rain: 0, harmattan: 0.6,
@@ -109,6 +109,14 @@ export const BIOMES = {
 // compatibilité : anciens drapeaux
 for (const B of Object.values(BIOMES)) B.huts = B.house === 'nord';
 
+// Postes de péage de la SAFER situés sur la N1 (coordonnées officielles projetées sur le tracé OSM, en km depuis Lomé)
+export const TOLLS = [
+  { name: 'Davié', km: 25.8 },
+  { name: 'Sotouboua', km: 282.0 },
+  { name: 'Alédjo', km: 367.0 },
+  { name: 'Mango', km: 544.5, t: 0.965 }, // entrée sud de Mango, après le pont sur l'Oti
+];
+
 export const PRICES = {
   fuelGare: 650, // F / litre à la gare
   fuelRoad: 750, // F / litre chez la vendeuse au bord de la route
@@ -120,6 +128,7 @@ export const PRICES = {
   rescueLiters: 6,
   goat: 5000,
   bagLost: 2000,
+  toll: 500, // péage : véhicule léger 500 F (grille 2021), minibus 9-15 places 500 F (grille de juillet 2026)
 };
 
 // capacités du véhicule choisi au garage (liaisons vivantes : mises à jour par setCapacity)
@@ -195,3 +204,9 @@ export function weatherFor(rng, i) {
 }
 
 export const WEATHER_LABEL = { clear: 'Ciel dégagé', rain: 'Pluie', harmattan: 'Harmattan (poussière)' };
+
+// péages de chaque étape (position relative 0..1)
+STAGES.forEach((st, i) => {
+  const a = kmOf(STAGE_CITIES[i]), b = kmOf(STAGE_CITIES[i + 1]);
+  st.tolls = TOLLS.filter((t) => t.km > a && t.km < b).map((t) => ({ name: t.name, t: t.t ?? +((t.km - a) / (b - a)).toFixed(3) }));
+});
