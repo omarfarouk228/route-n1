@@ -123,7 +123,7 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
           <li><b>Essence</b> : arrête-toi sur le bas-côté droit devant les vendeuses. À l’arrêt dans un village, les marchandes viennent aux vitres.</li>
         </ul>
       </details>
-      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : clips officiels lus via YouTube depuis les chaînes des artistes.</div>
+      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : titres publiés par les artistes sur Audiomack, lus via son lecteur intégré.</div>
     </div>`;
   const tm = document.createElement('canvas');
   tm.className = 'title-map';
@@ -366,18 +366,37 @@ export function renderGarage({ cfg, onChange, onSave, onCancel }) {
 
 /* ------------------------------------------------------------ autoradio */
 export function radioUI() {
+  let src = null;
   return {
-    host: () => 'r-yt',
-    showVideo(on) { $('#r-video').hidden = !on; },
-    render({ station, track, status }) {
+    // lecteur audio Audiomack (sans vidéo) ; replié, seule sa barre de lecture reste visible
+    frame(url) {
+      const host = $('#r-am');
+      if (url === src) return;
+      src = url;
+      host.textContent = '';
+      host.hidden = !url;
+      if (!url) return;
+      const f = document.createElement('iframe');
+      f.src = url;
+      f.title = 'Lecteur Audiomack';
+      f.allow = 'autoplay; encrypted-media';
+      f.loading = 'eager';
+      host.appendChild(f);
+    },
+    get iframe() { return $('#r-am iframe'); },
+    render({ station, track, status, playing, muted }) {
       $('#r-freq').textContent = station ? station.freq : 'OFF';
       $('#r-station').textContent = station ? station.name : 'Radio éteinte';
       $('#r-track').textContent = !station ? 'Touche R ou ⏻ pour allumer'
         : status === 'loading' ? 'Réglage…'
-        : status === 'offline' ? 'Pas de connexion : essaie N1 Groove'
         : `${track.artist} · ${track.title}`;
       $('#r-power').classList.toggle('on', !!station);
-      $('#r-note').textContent = station && station.kind === 'yt' ? 'Clips officiels lus depuis YouTube (chaînes des artistes).' : station ? 'Musique originale du jeu, générée en direct.' : '';
+      $('#radio').classList.toggle('am', !!station && station.kind === 'am' && !muted);
+      $('#r-note').textContent = !station ? ''
+        : station.kind === 'synth' ? 'Musique originale du jeu, générée en direct.'
+        : muted ? 'Son coupé (touche M pour le remettre).'
+        : playing ? 'Via Audiomack · le titre suivant se charge à la fin du morceau.'
+        : 'Appuie sur ▶ dans le lecteur pour écouter (audio seul, via Audiomack).';
     },
   };
 }

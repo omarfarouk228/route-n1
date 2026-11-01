@@ -136,18 +136,26 @@ input.bindTouch(document.getElementById('touch'));
 const sound = new Sound();
 const player = new Player();
 const radio = new Radio(sound, UI.radioUI());
+radio.muted = sound.muted;
 radio.render();
 document.getElementById('r-power').onclick = () => radio.power();
 document.getElementById('r-next').onclick = () => radio.nextStation(1);
 document.getElementById('r-prev').onclick = () => radio.nextStation(-1);
 document.getElementById('r-skip').onclick = () => radio.nextTrack();
-// radio repliable (repliée par défaut sur mobile) ; un clip YouTube ne joue que lorsqu'il est visible
+// radio repliable (repliée par défaut sur mobile) : repliée, il ne reste que la barre de lecture et la musique continue
 const radioEl = document.getElementById('radio');
 if (isTouch) radioEl.classList.add('min');
-function toggleRadioPanel() {
-  const min = radioEl.classList.toggle('min');
-  if (radio.current && radio.current.kind === 'yt') { try { if (min) radio.yt?.pauseVideo(); else radio.yt?.playVideo(); } catch { /* lecteur pas prêt */ } }
-}
+function toggleRadioPanel() { radioEl.classList.toggle('min'); }
+// un clic dans le lecteur Audiomack lui donne le focus clavier : on le détecte (lecture lancée) et on rend
+// le clavier au jeu pour que les flèches continuent de conduire le taxi
+window.addEventListener('blur', () => setTimeout(() => {
+  const f = document.activeElement;
+  if (f && f.tagName === 'IFRAME' && f.closest('#r-am')) {
+    radio.playerClicked();
+    f.blur();
+    window.focus();
+  }
+}, 0));
 document.getElementById('r-head').onclick = toggleRadioPanel;
 document.getElementById('r-head').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleRadioPanel(); } };
 
@@ -426,12 +434,10 @@ function updateDrive(dt) {
 }
 
 /* ------------------------------------------------------------ transitions */
-// le HUD et l'autoradio apparaissent ensemble ; le clip YouTube ne joue que lorsqu'il est visible
+// le HUD et l'autoradio apparaissent ensemble
 let radioStarted = false;
 function hud(on) {
   UI.hud(on);
-  const yt = radio.current && radio.current.kind === 'yt';
-  if (yt) { try { if (on && !radioEl.classList.contains('min')) radio.yt?.playVideo(); else radio.yt?.pauseVideo(); } catch { /* lecteur pas prêt */ } }
   if (on && !radioStarted) {
     radioStarted = true;
     if (radio.saved && radio.saved.station >= 0) radio.restore();
@@ -664,12 +670,17 @@ document.getElementById('b-cam').onclick = () => { camMode = (camMode + 1) % 3; 
 document.getElementById('b-sound').onclick = toggleSound;
 function toggleSound() {
   sound.setMuted(!sound.muted);
-  try { if (sound.muted) radio.yt?.mute(); else radio.yt?.unMute(); } catch { /* lecteur absent */ }
+  radio.setMuted(sound.muted);
   document.getElementById('b-sound').classList.toggle('off', sound.muted);
 }
 document.getElementById('b-sound').classList.toggle('off', sound.muted);
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
-addEventListener('blur', () => { if (state === 'drive' && !paused) setPause(true); });
+// pause automatique quand on quitte la fenêtre, sauf pour un clic dans le lecteur de la radio
+addEventListener('blur', () => setTimeout(() => {
+  const f = document.activeElement;
+  if (f && f.tagName === 'IFRAME' && f.closest('#r-am')) return;
+  if (state === 'drive' && !paused && !document.hasFocus()) setPause(true);
+}, 0));
 
 /* ------------------------------------------------------------ caméra et visuels */
 const fw = new THREE.Vector3();
@@ -813,6 +824,7 @@ function frame(now) {
   lastDt = dt;
   clock += dt;
   CHAR_U.uTime.value = clock;
+  radio.update(dt);
   if (!world) return;
   if (state === 'drive' && !paused) {
     updateDrive(dt);

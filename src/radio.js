@@ -1,5 +1,7 @@
-// Autoradio : une station originale générée en direct (sans fichier) et des stations de clips officiels
-// d'artistes togolais, lus via le lecteur YouTube intégré (vidéos publiées par les chaînes des artistes).
+// Autoradio : une station originale générée en direct (sans fichier) et des stations d'artistes togolais
+// lues via le lecteur audio intégré d'Audiomack (titres publiés par les artistes, écoute gratuite, sans vidéo).
+// Le lecteur Audiomack n'a pas d'API de pilotage : l'auditeur appuie sur ▶ dans le lecteur, et le jeu enchaîne
+// le titre suivant à la fin du morceau (durée connue).
 
 export const STATIONS = [
   {
@@ -8,48 +10,49 @@ export const STATIONS = [
     tracks: [{ title: 'Agbadza de la route', artist: 'Route N1', preset: 0 }, { title: 'Highlife du Mono', artist: 'Route N1', preset: 1 }, { title: 'Nuit à Kara', artist: 'Route N1', preset: 2 }],
   },
   {
-    id: 'lome', name: 'Lomé Hits', freq: '94.5', kind: 'yt',
-    desc: 'Clips officiels sur YouTube : Toofan, Santrinos Raphaël, Almok, Axel Merryl.',
+    id: 'lome', name: 'Lomé Hits', freq: '94.5', kind: 'am',
+    desc: 'Toofan, Santrinos Raphaël, Almok : titres publiés par les artistes sur Audiomack.',
     tracks: [
-      { id: 'O9P1g9q1JtM', artist: 'Toofan', title: 'Teré Teré' },
-      { id: 'OsOfpV2MnUY', artist: 'Santrinos Raphaël', title: 'Maladie d’amour' },
-      { id: 'ayc94-jNXtc', artist: 'Toofan', title: 'Gbessi Gbeko' },
-      { id: 'LQUOkoSsjM4', artist: 'Santrinos Raphaël', title: 'Vamidjo' },
-      { id: '7_i7mytYGb4', artist: 'Almok', title: 'Molo molo' },
-      { id: 'qcn2_UoWxTA', artist: 'Toofan', title: 'Déodorant' },
-      { id: 'inAX5qgevzw', artist: 'Santrinos Raphaël ft. Tenor', title: 'Boulevard' },
-      { id: 'ht2SPFqXZ_o', artist: 'Axel Merryl ft. Toofan', title: 'Gba Gba' },
-      { id: 'lUe1SorRjhI', artist: 'Santrinos Raphaël', title: 'Bougez là-bas' },
-      { id: 'zTm7JrD35F4', artist: 'Almok ft. DJ Arafat', title: 'Lébénè' },
-      { id: 'MQUZX3zogmo', artist: 'Toofan', title: 'Africa Hoyee' },
-      { id: '870XsTXIK2U', artist: 'Santrinos Raphaël', title: 'Fiançailles' },
-      { id: 'PzS9kC_S0WE', artist: 'Almok', title: 'Nononini' },
-      { id: 'xLItSYe0i7Q', artist: 'Santrinos Raphaël ft. Hiro', title: 'Pour la vie' },
-      { id: 'uLBM-lGntvA', artist: 'Toofan', title: 'Ce magik' },
-      { id: 'i5aU7q9peiM', artist: 'Almok', title: 'C ma prière' },
+      { a: 'toofan', s: 'gweta-1', artist: 'Toofan', title: 'Gweta', d: 225 },
+      { a: 'santrinosraphael', s: 'waa', artist: 'Santrinos Raphaël ft. Zeynab', title: 'WAA', d: 197 },
+      { a: 'toofan', s: 'orobo-3', artist: 'Toofan', title: 'Orobo', d: 197 },
+      { a: 'santrinosraphael', s: 'maladie-damour', artist: 'Santrinos Raphaël', title: 'Maladie d’amour', d: 177 },
+      { a: 'almok-officiel', s: 'cest-ma-priere-almok-officiel', artist: 'Almok', title: 'C’est ma prière', d: 250 },
+      { a: 'toofan', s: 'ca-va-ca-vient', artist: 'Toofan ft. Willy Dumbo', title: 'Ça va ça vient', d: 145 },
+      { a: 'santrinosraphael', s: 'lome-by-night', artist: 'Santrinos Raphaël', title: 'Lomé by Night', d: 206 },
+      { a: 'toofan', s: 'ou-tu-es-1', artist: 'Toofan', title: 'Où tu es', d: 209 },
+      { a: 'santrinosraphael', s: 'mawu-na', artist: 'Santrinos Raphaël', title: 'Mawu na', d: 207 },
+      { a: 'toofan', s: 'dati-the-wood-1', artist: 'Toofan', title: 'Dati the Wood', d: 219 },
+      { a: 'santrinosraphael', s: 'belle-vie', artist: 'Santrinos Raphaël', title: 'Belle Vie', d: 194 },
     ],
   },
   {
-    id: 'rap', name: 'Rap 228', freq: '101.3', kind: 'yt',
-    desc: 'Rap et urbain togolais en clips officiels : Mic Flammez, Toofan, Almok.',
+    id: 'rap', name: 'Rap 228', freq: '101.3', kind: 'am',
+    desc: 'Rap togolais : Mic Flammez, Elow’n.',
     tracks: [
-      { id: 'jn6Wu6eDW08', artist: 'Mic Flammez', title: 'Bruiii' },
-      { id: '9Ol25ZeEM2s', artist: 'Mic Flammez', title: 'Tsakatu' },
-      { id: '0cS1QwVX8bY', artist: 'Toofan ft. Kassav', title: 'Ou lé' },
-      { id: 'WT9KNu299a0', artist: 'Almok', title: 'Judas' },
+      { a: 'mic-flammez', s: 'agama', artist: 'Mic Flammez', title: 'Agama', d: 245 },
+      { a: 'elown', s: 'classico', artist: 'Elow’n ft. Sindika', title: 'Classico', d: 178 },
+      { a: 'mic-flammez', s: 'eperviers', artist: 'Mic Flammez', title: 'Éperviers', d: 197 },
+      { a: 'elown', s: 'ca-va-aller', artist: 'Elow’n', title: 'Ça va aller', d: 158 },
+      { a: 'mic-flammez', s: 'konti', artist: 'Mic Flammez & Conii Gangster', title: 'Konti', d: 165 },
+      { a: 'elown', s: 'demain-sera-meilleur', artist: 'Elow’n', title: 'Demain sera meilleur', d: 168 },
+      { a: 'mic-flammez', s: 'la-vie-1', artist: 'Mic Flammez', title: 'La vie', d: 203 },
     ],
   },
   {
-    id: 'legendes', name: 'Légendes', freq: '106.7', kind: 'yt',
-    desc: 'Les voix qui ont fait le Togo : King Mensah, Vaudou Game (Peter Solo).',
+    id: 'legendes', name: 'Légendes', freq: '106.7', kind: 'am',
+    desc: 'Les voix qui ont fait le Togo : Bella Bellow, King Mensah, Afia Mala, Vaudou Game, Amen Viana.',
     tracks: [
-      { id: 'yRl68KjReWU', artist: 'King Mensah', title: 'Togo, je t’aime' },
-      { id: 'kgwQDjeNsFY', artist: 'King Mensah', title: 'Egno' },
-      { id: 'sN9StbxjJPw', artist: 'Vaudou Game', title: 'Pas contente' },
-      { id: 'orHMn0yCJts', artist: 'King Mensah', title: 'Ewoe' },
-      { id: '5Qix8-0xXjY', artist: 'Vaudou Game', title: 'La vie c’est bon' },
-      { id: 'SNG8KRSz_ns', artist: 'King Mensah', title: 'Xonam' },
-      { id: 'YZKOgX4_fqM', artist: 'King Mensah', title: 'Ega Begna' },
+      { a: 'bella-bellow', s: 'blewu', artist: 'Bella Bellow', title: 'Blewu', d: 121 },
+      { a: 'king-mensah', s: 'madjo', artist: 'King Mensah', title: 'Madjo', d: 236 },
+      { a: 'afia-mala', s: 'togo', artist: 'Afia Mala & Orquesta Aragón', title: 'Togo', d: 350 },
+      { a: 'vaudou-game', s: 'koliko', artist: 'Vaudou Game', title: 'Koliko', d: 230 },
+      { a: 'bella-bellow', s: 'zelie', artist: 'Bella Bellow', title: 'Zelié', d: 162 },
+      { a: 'king-mensah', s: 'nana-benz', artist: 'King Mensah', title: 'Nana Benz', d: 275 },
+      { a: 'afia-mala', s: 'lonlon-vanvan', artist: 'Afia Mala & Orquesta Aragón', title: 'Lonlon Vanvan', d: 283 },
+      { a: 'amen-viana', s: 'rising-nation', artist: 'Amen Viana ft. Keziah Jones', title: 'Rising Nation', d: 222 },
+      { a: 'bella-bellow', s: 'denyigban', artist: 'Bella Bellow', title: 'Denyigban', d: 154 },
+      { a: 'afia-mala', s: 'sweet-africa', artist: 'Afia Mala & Orquesta Aragón', title: 'Sweet Africa', d: 346 },
     ],
   },
 ];
@@ -166,31 +169,18 @@ export class SynthStation {
   stab(t, f, d) { this.env(t, 0.01, d, 0.035, this.out, 'sawtooth', f, 8); this.env(t, 0.01, d, 0.03, this.out, 'sawtooth', f, -8); }
 }
 
-/* ------------------------------------------------------------ lecteur YouTube (chargé à la demande) */
-let ytReady = null;
-function loadYT() {
-  if (ytReady) return ytReady;
-  ytReady = new Promise((resolve, reject) => {
-    if (window.YT && window.YT.Player) return resolve();
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => { prev?.(); resolve(); };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = () => { ytReady = null; reject(new Error('YouTube indisponible')); };
-    document.head.appendChild(s);
-  });
-  return ytReady;
-}
-
+/* ------------------------------------------------------------ radio */
 export class Radio {
   constructor(sound, ui) {
     this.sound = sound;
-    this.ui = ui; // { render(state), host: element pour l'iframe }
+    this.ui = ui; // { render(state), frame(src|null) }
     this.station = -1; // -1 = éteint
     this.track = 0;
-    this.yt = null;
     this.synth = null;
     this.order = {};
+    this.playing = false; // lecture Audiomack lancée par l'auditeur
+    this.elapsed = 0;
+    this.muted = false;
     try { this.saved = JSON.parse(localStorage.getItem('n1.radio') || 'null'); } catch { this.saved = null; }
   }
   get current() { return this.station >= 0 ? STATIONS[this.station] : null; }
@@ -204,72 +194,65 @@ export class Radio {
   save() { try { localStorage.setItem('n1.radio', JSON.stringify({ station: this.station })); } catch { /* ignore */ } }
   restore() { if (this.saved && this.saved.station >= 0) this.tune(this.saved.station); }
 
-  async tune(i) {
+  tune(i) {
     this.stopAll();
     this.station = i;
     this.track = 0;
     this.save();
-    await this.playCurrent();
+    this.playCurrent();
   }
   power() { if (this.station >= 0) { this.stopAll(); this.station = -1; this.save(); this.render(); } else this.tune(0); }
   nextStation(d = 1) { this.tune(((this.station < 0 ? 0 : this.station) + d + STATIONS.length) % STATIONS.length); }
-  async nextTrack() { if (!this.current) return; this.track++; await this.playCurrent(); }
+  nextTrack() { if (!this.current) return; this.track++; this.playCurrent(); }
 
   stopAll() {
     this.synth?.stop();
-    if (this.yt) { try { this.yt.stopVideo(); } catch { /* lecteur pas prêt */ } }
-    this.ui.showVideo(false);
+    this.ui.frame(null);
+    this.playing = false;
   }
 
-  async playCurrent() {
+  playCurrent() {
     const s = this.current;
-    this.render('loading');
     if (!s) return;
     const t = this.trackInfo;
+    this.playing = false;
+    this.elapsed = 0;
     if (s.kind === 'synth') {
+      this.ui.frame(null);
       this.sound.init();
       if (!this.synth) this.synth = new SynthStation(this.sound.ctx, this.sound.master);
-      this.synth.play(t.preset);
-      this.ui.showVideo(false);
+      if (!this.muted) this.synth.play(t.preset);
       this.render();
       return;
     }
     this.synth?.stop();
-    this.ui.showVideo(true);
-    try {
-      await loadYT();
-    } catch {
-      this.render('offline');
-      return;
-    }
-    if (!this.yt) {
-      this.yt = await new Promise((resolve) => {
-        const p = new window.YT.Player(this.ui.host(), {
-          width: 220, height: 200, videoId: t.id,
-          playerVars: { autoplay: 1, controls: 1, playsinline: 1, rel: 0, modestbranding: 1 },
-          events: {
-            onReady: () => resolve(p),
-            onStateChange: (e) => { if (e.data === 0) this.nextTrack(); },
-            onError: () => this.nextTrack(),
-          },
-        });
-      });
-      this.yt.setVolume(70);
-      if (!document.getElementById('radio').classList.contains('min')) this.yt.playVideo(); else this.yt.pauseVideo();
-    } else {
-      if (document.getElementById('radio').classList.contains('min')) this.yt.cueVideoById(t.id); else this.yt.loadVideoById(t.id);
-    }
+    this.ui.frame(this.muted ? null : `https://audiomack.com/embed/${t.a}/song/${t.s}`);
     this.render();
   }
-  // la musique baisse quand on met le jeu en pause
-  pause(on) {
-    if (on) { this.synth?.stop(); try { this.yt?.pauseVideo(); } catch { /* ignore */ } }
-    else if (this.current) {
-      if (this.current.kind === 'synth') this.synth?.play(this.trackInfo.preset);
-      else if (!document.getElementById('radio').classList.contains('min')) try { this.yt?.playVideo(); } catch { /* ignore */ }
-    }
+  // l'auditeur a cliqué dans le lecteur Audiomack (lecture ou pause)
+  playerClicked() {
+    if (!this.current || this.current.kind !== 'am') return;
+    this.playing = !this.playing;
+    this.render();
   }
-  render(status) { this.ui.render({ station: this.current, track: this.trackInfo, status, index: this.station }); }
+  // enchaîne le titre suivant à la fin du morceau ; le suivant démarre au prochain appui sur ▶
+  update(dt) {
+    if (!this.playing) return;
+    this.elapsed += dt;
+    const t = this.trackInfo;
+    if (t && t.d && this.elapsed > t.d + 1.5) this.nextTrack();
+  }
+  // la station générée se tait pendant la pause ; Audiomack continue comme un vrai autoradio
+  pause(on) {
+    if (!this.current || this.current.kind !== 'synth' || this.muted) return;
+    if (on) this.synth?.stop(); else this.synth?.play(this.trackInfo.preset);
+  }
+  // couper le son coupe aussi la radio (le lecteur Audiomack est déchargé)
+  setMuted(m) {
+    this.muted = m;
+    if (this.current) this.playCurrent();
+  }
+  render(status) { this.ui.render({ station: this.current, track: this.trackInfo, status, index: this.station, playing: this.playing, muted: this.muted }); }
 }
 
 function shuffle(a) {
