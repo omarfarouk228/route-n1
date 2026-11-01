@@ -109,7 +109,7 @@ export function updateHud(d) {
   setBar($('#g-hp'), d.hp / 100);
   $('#g-hp-t').textContent = Math.round(d.hp) + ' %';
   setBar($('#g-comfort'), d.comfort / 100);
-  $('#g-pax').textContent = d.pax ? Math.round(d.comfort) + ' %' : '—';
+  $('#g-pax').textContent = d.pax ? Math.round(d.comfort) + ' %' : '·';
 }
 
 /* ------------------------------------------------------------ titre */
@@ -243,7 +243,7 @@ export function renderArrival({ run, city, lines, extra, stageTime, onNext, last
   const el = $('#s-arrival');
   const rows = lines.map((l) => {
     const cls = l.amount > 0 ? 'pos' : l.amount < 0 ? 'neg' : '';
-    return `<div class="l"><span>${l.label}</span><b class="${cls}">${l.amount ? (l.amount > 0 ? '+' : '') + fmtMoney(l.amount) : '—'}</b></div>`;
+    return `<div class="l"><span>${l.label}</span><b class="${cls}">${l.amount ? (l.amount > 0 ? '+' : '') + fmtMoney(l.amount) : '·'}</b></div>`;
   }).join('');
   el.innerHTML = `
     <div class="card sheet"><div class="stripe"></div><div class="inner">

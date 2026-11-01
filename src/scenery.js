@@ -408,15 +408,15 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
   const lod = [];
   for (const [type, all] of Object.entries(lists)) {
     const isChar = CHAR_TYPE.test(type);
-    // personnages et animaux : découpés en îlots de 120 m, masqués au loin (voir updateLod)
+    // tout le décor est découpé en îlots (120 m pour les personnages, 360 m sinon) : la caméra n'envoie
+    // à la carte graphique que ce qui est dans le champ, et updateLod masque ce qui est au-delà de la brume
+    const cell = isChar ? 120 : 360;
     const chunks = new Map();
-    if (isChar) {
-      for (const m of all) {
-        const k = Math.floor(m.elements[12] / 120) + ',' + Math.floor(m.elements[14] / 120);
-        if (!chunks.has(k)) chunks.set(k, []);
-        chunks.get(k).push(m);
-      }
-    } else chunks.set('all', all);
+    for (const m of all) {
+      const k = Math.floor(m.elements[12] / cell) + ',' + Math.floor(m.elements[14] / cell);
+      if (!chunks.has(k)) chunks.set(k, []);
+      chunks.get(k).push(m);
+    }
     for (const mats of chunks.values()) {
       const im = new THREE.InstancedMesh(G[type], isChar ? CH.CHAR_MAT : MAT, mats.length);
       mats.forEach((m, k) => im.setMatrixAt(k, m));
@@ -425,7 +425,8 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
       if (shadows && SHADOW_TYPES.has(type)) im.castShadow = true;
       im.receiveShadow = shadows;
       group.add(im);
-      if (isChar) lod.push(im);
+      im.userData.far = isChar ? 0 : 1;
+      lod.push(im);
     }
   }
   // enseignes (un seul maillage)
@@ -571,12 +572,13 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
 }
 
 // masque les îlots de personnages et d'animaux trop loin de la caméra
-export function updateLod(lod, cam, dist = 230) {
-  const d2 = dist * dist;
+export function updateLod(lod, cam, dist = 230, far = 640) {
   for (const im of lod) {
+    const D = im.userData.far ? far : dist;
     const c = im.boundingSphere.center, r = im.boundingSphere.radius;
     const dx = c.x - cam.x, dz = c.z - cam.z;
-    im.visible = dx * dx + dz * dz < d2 + r * r + 2 * dist * r;
+    const lim = D + r;
+    im.visible = dx * dx + dz * dz < lim * lim;
   }
 }
 

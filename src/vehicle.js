@@ -1,6 +1,6 @@
 import { HALF_ROAD, SHOULDER } from './road.js';
 import { clamp } from './util.js';
-import { SEATS, ROOF } from './data.js';
+import { SEATS, ROOF, LEN_SCALE } from './data.js';
 
 // Physique arcade dans le repère de la route : s (abscisse), x (décalage latéral, + = droite), yaw (angle par rapport à l'axe).
 export class Player {
@@ -80,7 +80,8 @@ export class Player {
 
     // carburant
     const lpm = 0.0034 * V.fuel * (1 + loadF * 0.55) * (0.45 + 0.55 * this.throttle) + Math.max(0, f.grade) * 0.025 * this.throttle;
-    run.fuel = Math.max(0, run.fuel - lpm * Math.abs(this.v) * dt - (input.gas ? 0.002 * dt : 0.0004 * dt));
+    // consommation ramenée à l'étape : des étapes plus longues ne vident pas plus le réservoir
+    run.fuel = Math.max(0, run.fuel - (lpm * Math.abs(this.v) * dt + (input.gas ? 0.002 * dt : 0.0004 * dt)) / LEN_SCALE);
 
     // ressentis
     this.lat = Math.abs(this.v * this.v * f.k + yawRate * this.v * 0.6);

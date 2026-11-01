@@ -45,13 +45,14 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 
 ## Le trajet
 
-Le trajet réel fait 618 km (mesuré sur OpenStreetMap) ; il est **compressé** à environ 16,5 km de route jouable. Les bornes kilométriques et le HUD affichent les distances réelles. Les paysages changent du sud au nord : côte et cocotiers, plaine, plateaux, faille d'Alédjo (paroi rocheuse, lacets, ligne continue), savane avec baobabs et termitières, Sahel dans l'harmattan.
+Le trajet réel fait 618 km (mesuré sur OpenStreetMap) ; il est **compressé** à environ 41 km de route jouable (5 à 8 km par étape). L'horloge du jeu suit les kilomètres réels parcourus, à environ 60 km/h de moyenne comme un vrai taxi-brousse : Lomé → Dapaong prend une douzaine d'heures de jeu, arrêts compris. Les bornes kilométriques et le HUD affichent les distances réelles. Les paysages changent du sud au nord : côte et cocotiers, plaine, plateaux, faille d'Alédjo (paroi rocheuse, lacets, ligne continue), savane avec baobabs et termitières, Sahel dans l'harmattan.
 
 ## Technique
 
 - [Three.js](https://threejs.org) et [Vite](https://vite.dev), sans moteur de jeu.
 - Tout est généré dans le code : route procédurale, terrain, bâtiments, véhicules, panneaux (textures canvas), sons (WebAudio). Il n'y a **aucun fichier image ni audio** à télécharger.
 - Environ 200 Ko gzippés pour le code, et moins de 200 Mo de mémoire JavaScript en jeu, stable d'une étape à l'autre.
+- Décor découpé en îlots : seul ce qui est dans le champ et en deçà de la brume est dessiné.
 - Qualité réduite automatiquement sur écran tactile (densité du décor, pas d'ombres ni de post-traitement) et résolution dynamique sur PC.
 
 ## Développement

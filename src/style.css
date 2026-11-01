@@ -59,7 +59,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   font: italic 800 11px/1 var(--display); font-stretch: 85%;
   letter-spacing: 0.16em; text-transform: uppercase; color: var(--yellow);
 }
-.tag::before, .eyebrow::before { content: ''; width: 14px; height: 3px; background: currentColor; transform: skewX(-20deg); }
 .btn {
   position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 12px;
   min-height: 50px; padding: 0 28px;
@@ -111,7 +110,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .title-wrap h1 em { font-style: italic; color: var(--yellow); }
 .title-wrap p.lead { margin: 0; font-size: clamp(15px, 2.2vw, 17px); line-height: 1.55; max-width: 48ch; color: #d7ddd8; }
 .route-strip { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; font: italic 800 12px/1 var(--display); font-stretch: 85%; letter-spacing: 0.1em; text-transform: uppercase; color: #cfd6d0; }
-.route-strip i { width: 16px; height: 2px; background: var(--yellow); display: inline-block; transform: skewX(-30deg); }
+.route-strip i { width: 5px; height: 5px; border-radius: 50%; background: var(--yellow); display: inline-block; margin: 0 3px; }
 .title-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .title-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
 .title-meta b { color: var(--text); }
@@ -119,7 +118,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .howto summary { cursor: pointer; list-style: none; padding: 14px 16px; font: italic 900 15px/1 var(--display); font-stretch: 80%; text-transform: uppercase; display: flex; justify-content: space-between; }
 .howto summary::-webkit-details-marker { display: none; }
 .howto summary::after { content: '+'; color: var(--yellow); }
-.howto[open] summary::after { content: '–'; }
+.howto[open] summary::after { content: '×'; }
 .howto ul { margin: 0; padding: 0 16px 14px 34px; }
 .howto li { margin: 4px 0; }
 .howto b { color: var(--text); }

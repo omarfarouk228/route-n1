@@ -241,7 +241,7 @@ export class Road {
     this.tolls = (st.tolls || []).map((t) => ({ s: t.t * L, name: t.name, paid: false, wait: 0, warned: false, hit: 0 }));
     // contrôles routiers (jamais dans la faille ni près d'un péage) ; certains demandent les papiers
     this.checkpoints = [];
-    const nCp = L > 2500 && rng() < 0.5 ? 2 : 1;
+    const nCp = Math.max(1, Math.round(L / 3800 + (rng() - 0.5)));
     for (let k = 0; k < nCp; k++) {
       for (let tries = 0; tries < 20; tries++) {
         const cs = L * rand(rng, 0.25, 0.85);

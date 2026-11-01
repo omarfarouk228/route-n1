@@ -314,7 +314,8 @@ function updateDrive(dt) {
   if (hornNow) sound.horn();
   const ev = player.update(dt, r, inp, run, world.weather);
   run.stageTime += dt;
-  run.hour += (dt * 0.8) / 60;
+  // horloge : suit les kilomètres réels parcourus (≈ 60 km/h de moyenne en taxi-brousse), plus le temps à l'arrêt
+  run.hour += (Math.abs(player.v) * dt * (STAGES[run.stage].km / r.length)) / 60 + (dt * 0.12) / 60;
   const speed = Math.abs(player.v);
 
   // nids-de-poule : chaque roue peut tomber dedans, on peut les enjamber
@@ -936,7 +937,7 @@ function frame(now) {
   }
   placeTaxi();
   if (!freeCam) updateCamera(dt);
-  updateLod(world.lod, camera.position, isTouch ? 160 : 230);
+  updateLod(world.lod, camera.position, isTouch ? 160 : 230, Math.max(260, scene.fog.far + 120));
   updateLighting();
   rain.update(dt, camera);
   if (post) post.composer.render(); else renderer.render(scene, camera);
