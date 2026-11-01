@@ -436,3 +436,8 @@ body.touch #toasts { top: calc(206px + var(--safe-t)); }
 @keyframes alIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 body.touch .h-alert { top: calc(96px + var(--safe-t)); padding: 8px 12px; }
 body.touch .h-alert b { font-size: 13px; }
+
+/* les messages descendent sous l'alerte persistante pour ne jamais la chevaucher */
+#toasts { transition: transform .25s ease; }
+#hud.has-alert #toasts { transform: translate(-50%, 72px); }
+body.touch #hud.has-alert #toasts { transform: translate(-50%, 64px); }

@@ -56,6 +56,7 @@ export function alert(a) {
   if (key === alertKey) return;
   alertKey = key;
   el.hidden = !a;
+  $('#hud').classList.toggle('has-alert', !!a);
   if (!a) return;
   el.className = 'h-alert ' + a.kind;
   $('#h-al-t').textContent = a.text;

@@ -382,9 +382,10 @@ function updateDrive(dt) {
         UI.banner('Contrôle routier', cp.papers ? 'Contrôle des papiers' : 'Gendarmerie', cp.papers ? 'Arrête-toi à la barrière' : 'Passe sous 20 km/h', 2600);
         sound.whistle();
       }
-      alert = cp.papers && !cp.cleared
+      // l'alerte disparaît dès que le contrôle est passé (un message le confirme)
+      if (!cp.done) alert = cp.papers && !cp.cleared
         ? { kind: 'police', text: 'Contrôle en cours', sub: d > 12 ? `Arrête-toi à la barrière · ${Math.max(0, Math.round(d))} m` : speed < 0.6 ? 'Le gendarme vérifie tes papiers…' : 'Arrête-toi' }
-        : { kind: 'police', text: 'Contrôle en cours', sub: cp.done ? 'C’est passé, bonne route' : `Ralentis sous 20 km/h · ${Math.round(speed * 3.6)} km/h` };
+        : { kind: 'police', text: 'Contrôle en cours', sub: `Ralentis sous 20 km/h · ${Math.round(speed * 3.6)} km/h` };
     }
     // contrôle des papiers : la barrière reste fermée tant qu'on ne s'est pas arrêté
     if (cp.papers && !cp.cleared) {
@@ -427,7 +428,7 @@ function updateDrive(dt) {
     const d = t.s - player.s;
     if (d < 140 && d > -10) {
       if (!t.warned) { t.warned = true; UI.banner('Poste de péage', t.name, 'Arrêt obligatoire au guichet · 500 F', 2600); }
-      alert = { kind: 'toll', text: `Péage de ${t.name}`, sub: t.paid ? 'Payé · bonne route' : d > 14 ? `Arrêt obligatoire · ${Math.round(d)} m` : speed < 0.6 ? 'Paiement au guichet…' : 'Arrête-toi au guichet' };
+      if (!t.paid) alert = { kind: 'toll', text: `Péage de ${t.name}`, sub: d > 14 ? `Arrêt obligatoire · ${Math.round(d)} m` : speed < 0.6 ? 'Paiement au guichet…' : 'Arrête-toi au guichet' };
     }
     if (!t.paid) {
       const stopAt = t.s - 1.4 - halfLen;
