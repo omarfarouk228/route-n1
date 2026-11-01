@@ -6,6 +6,8 @@ Ce n'est pas une course : c'est un **voyage à gérer**. À chaque gare routièr
 
 ## Jouer
 
+**En ligne : https://omarfarouk228.github.io/route-n1/**
+
 - **Gaz** : `↑` / `Z` / `W`
 - **Frein / marche arrière** : `↓` / `S`
 - **Direction** : `←` `→` / `Q` `D` / `A` `D`
