@@ -137,7 +137,7 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
           <li><b>Essence</b> : arrête-toi sur le bas-côté droit devant les vendeuses. À l’arrêt dans un village, les marchandes viennent aux vitres.</li>
         </ul>
       </details>
-      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : titres publiés par les artistes sur Audiomack, lus via son lecteur intégré.</div>
+      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : titres publiés par les artistes sur Audiomack et clips officiels sur YouTube, lus via leurs lecteurs intégrés.</div>
     </div>`;
   const tm = document.createElement('canvas');
   tm.className = 'title-map';
@@ -398,18 +398,27 @@ export function radioUI() {
       host.appendChild(f);
     },
     get iframe() { return $('#r-am iframe'); },
-    render({ station, track, status, playing, muted }) {
+    host: 'r-yt',
+    showVideo(on) { $('#r-video').hidden = !on; },
+    collapsed() { return $('#radio').classList.contains('min'); },
+    render({ station, track, status, playing, muted, mode }) {
+      const synth = !station || station.kind === 'synth';
       $('#r-freq').textContent = station ? station.freq : 'OFF';
       $('#r-station').textContent = station ? station.name : 'Radio éteinte';
       $('#r-track').textContent = !station ? 'Touche R ou ⏻ pour allumer'
         : status === 'loading' ? 'Réglage…'
+        : status === 'offline' ? 'YouTube injoignable : essaie le mode Audio'
         : `${track.artist} · ${track.title}`;
       $('#r-power').classList.toggle('on', !!station);
-      $('#radio').classList.toggle('am', !!station && station.kind === 'am' && !muted);
+      $('#r-mode').hidden = synth;
+      $('#r-m-audio').classList.toggle('on', mode !== 'clip');
+      $('#r-m-clip').classList.toggle('on', mode === 'clip');
+      $('#radio').classList.toggle('am', !synth && mode !== 'clip' && !muted);
       $('#r-note').textContent = !station ? ''
-        : station.kind === 'synth' ? 'Musique originale du jeu, générée en direct.'
+        : synth ? 'Musique originale du jeu, générée en direct.'
         : muted ? 'Son coupé (touche M pour le remettre).'
-        : playing ? 'Via Audiomack · le titre suivant se charge à la fin du morceau.'
+        : mode === 'clip' ? 'Clips officiels via YouTube : le clip se met en pause quand la radio est repliée.'
+        : playing ? 'Audio seul via Audiomack · le titre suivant se charge à la fin du morceau.'
         : 'Appuie sur ▶ dans le lecteur pour écouter (audio seul, via Audiomack).';
     },
   };

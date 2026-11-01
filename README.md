@@ -13,7 +13,7 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 - **Direction** : `←` `→` / `Q` `D` / `A` `D`
 - **Klaxon** : `Espace` / `H` (le camion ou le zém devant toi se range à droite ; les chèvres pressent le pas)
 - **Caméra** : `C` · **Son** : `M` · **Pause** : `P` / `Échap`
-- **Radio** : `R` allumer/éteindre · `T` station suivante · `N` titre suivant
+- **Radio** : `R` allumer/éteindre · `T` station suivante · `N` titre suivant · `V` audio seul / clip
 - Sur mobile : boutons tactiles ◀ ▶, Klaxon, Frein, Gaz.
 
 ## Règles du voyage
@@ -33,7 +33,7 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 
 - **Carte réelle** : tracé de la N1 et contour du Togo issus d'OpenStreetMap ; mini-carte orientée pendant la conduite, carte complète à la gare, en pause et sur l'écran titre. La forme des virages suit la route réelle (compressée).
 - **Garage** : break 7 places, minibus 12 places ou berline 4 places, chacun avec sa physique (masse, puissance, adhérence, consommation). Peinture (palette ou couleur libre), bandes, jantes, galerie, slogan peint sur la lunette arrière et plaque personnalisée.
-- **Autoradio** : *N1 Groove*, musique originale générée en direct (cloche gankogui, afrobeat, guitare highlife) qui fonctionne hors ligne, et trois stations d'artistes togolais en **audio seul** : *Lomé Hits* (Toofan, Santrinos Raphaël, Almok), *Rap 228* (Mic Flammez, Elow'n) et *Légendes* (Bella Bellow, King Mensah, Afia Mala, Vaudou Game, Amen Viana). Les titres sont lus via le lecteur intégré d'Audiomack, depuis les comptes des artistes, en écoute gratuite. Radio repliée, il ne reste que la barre de lecture et la musique continue. Appuie sur ▶ dans le lecteur ; le titre suivant se charge à la fin du morceau. Aucun fichier audio d'artiste n'est hébergé dans ce dépôt.
+- **Autoradio** : *N1 Groove*, musique originale générée en direct (cloche gankogui, afrobeat, guitare highlife) qui fonctionne hors ligne, et trois stations d'artistes togolais : *Lomé Hits* (Toofan, Santrinos Raphaël, Almok, Axel Merryl), *Rap 228* (Mic Flammez, Elow'n) et *Légendes* (Bella Bellow, King Mensah, Afia Mala, Vaudou Game, Amen Viana). Chaque station a deux modes (bouton ou touche `V`). En mode **Audio**, l'écoute passe par le lecteur Audiomack, sans vidéo, et continue radio repliée : appuie sur ▶, le titre suivant se charge à la fin du morceau. En mode **Clip**, ce sont les clips officiels via le lecteur YouTube, mis en pause quand la radio est repliée. Aucun fichier audio d'artiste n'est hébergé dans ce dépôt.
 - **Paysages par région** : cocotiers et palmiers à huile au sud, plantations de teck, bananiers, fromagers, nimiers, rôniers et baobabs au nord ; champs de maïs, d'igname, de manioc et de mil ; brûlis de saison sèche ; terrasses kabyè autour de Kara ; ponts sur le Haho et l'Oti avec forêt galerie.
 - **Villes et villages** : immeubles R+1 en périphérie de Lomé, maisons en ciment et tôle, concessions de cases rondes avec greniers au nord, églises, mosquées (Sokodé), écoles avec le drapeau, kiosques aux enseignes peintes, stations-service, antennes, ligne électrique continue.
 - **Personnages** : silhouettes modelées (visage, mains, pieds), pagnes et foulards en **motifs wax** dessinés dans le shader, porteuses de bassines, femmes avec bébé au dos, hommes en grand boubou, écoliers en kaki, policiers en béret. Animation de marche (jambes, genoux, bras), passants qui circulent sur l'accotement et s'écartent du taxi, vendeuses qui accourent aux vitres quand tu t'arrêtes (le confort des passagers remonte).
@@ -72,7 +72,7 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 | `src/geo.js` · `src/geo/*.json` | Tracé réel de la N1 et contour du Togo (OpenStreetMap), projection, positions des villes |
 | `src/map.js` | Carte complète et mini-carte |
 | `src/garage.js` | Véhicules et personnalisation |
-| `src/radio.js` | Autoradio : station générée en direct et stations Audiomack |
+| `src/radio.js` | Autoradio : station générée en direct, stations en mode Audio (Audiomack) ou Clip (YouTube) |
 | `src/vendors.js` | Vendeuses ambulantes |
 | `src/characters.js` · `src/walkers.js` | Personnages et animaux (squelette animé dans le shader, motifs wax), passants |
 | `src/post.js` · `src/terrainmat.js` | Post-traitement, matériaux du sol et de l'eau |
@@ -91,7 +91,7 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 ## Crédits
 
 - Données géographiques © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright), sous licence ODbL.
-- Musiques des stations « Lomé Hits », « Rap 228 » et « Légendes » : titres publiés par les artistes sur [Audiomack](https://audiomack.com), lus via le lecteur intégré d'Audiomack. Tous droits réservés à leurs auteurs.
+- Musiques des stations « Lomé Hits », « Rap 228 » et « Légendes » : titres publiés par les artistes sur [Audiomack](https://audiomack.com) et clips officiels publiés sur YouTube, lus via les lecteurs intégrés de ces plateformes. Tous droits réservés à leurs auteurs.
 
 ## Licence
 

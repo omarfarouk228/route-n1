@@ -337,7 +337,7 @@ body.touch .kbd { display: none; }
 .r-head { display: flex; gap: 10px; align-items: center; cursor: pointer; }
 .r-caret { width: 16px; height: 16px; margin-left: auto; flex: none; color: var(--muted); transition: transform 0.2s; }
 .radio.min .r-caret { transform: rotate(-90deg); }
-.radio.min .r-btns, .radio.min .r-note { display: none !important; }
+.radio.min .r-btns, .radio.min .r-note, .radio.min .r-mode, .radio.min .r-video { display: none !important; }
 /* replié : seule la barre de lecture Audiomack reste visible (la musique continue) */
 .radio.min.am { width: 244px; }
 .radio.min .r-am { height: 54px; margin-top: 8px; }
@@ -347,6 +347,12 @@ body.touch .kbd { display: none; }
 .r-info { display: grid; gap: 4px; min-width: 0; }
 .r-info b { font: italic 900 14px/1.05 var(--display); font-stretch: 85%; text-transform: uppercase; letter-spacing: 0.03em; }
 .r-info span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-video { margin-top: 10px; width: 220px; height: 200px; border-radius: 8px; overflow: hidden; background: #000; }
+.r-video iframe { width: 220px; height: 200px; display: block; border: 0; }
+.r-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 8px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,.14); }
+.r-mode[hidden] { display: none; }
+.r-mode button { appearance: none; border: 0; background: rgba(255,255,255,.04); color: rgba(255,255,255,.7); font: italic 800 12px/1 'Archivo', sans-serif; letter-spacing: .06em; text-transform: uppercase; padding: 8px 0; cursor: pointer; }
+.r-mode button.on { background: #f4c430; color: #16161a; }
 .r-am { margin-top: 10px; width: 100%; height: 252px; border-radius: 8px; overflow: hidden; background: #141414; transition: height .2s; }
 .r-am iframe { width: 100%; height: 252px; display: block; border: 0; }
 .r-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
@@ -359,6 +365,7 @@ body.touch .kbd { display: none; }
 body.touch .radio { top: calc(140px + var(--safe-t)); width: 214px; padding: 10px; }
 body.touch .radio.min { padding: 8px 10px; }
 body.touch .radio.min.am { width: 214px; }
+body.touch .r-video, body.touch .r-video iframe { width: 194px; height: 180px; }
 
 /* chargement */
 #loading { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; background: radial-gradient(ellipse at 50% 40%, #16231b, #070a08 70%); transition: opacity 0.5s; }

@@ -170,7 +170,9 @@ document.getElementById('r-skip').onclick = () => radio.nextTrack();
 // radio repliable (repliée par défaut sur mobile) : repliée, il ne reste que la barre de lecture et la musique continue
 const radioEl = document.getElementById('radio');
 if (isTouch) radioEl.classList.add('min');
-function toggleRadioPanel() { radioEl.classList.toggle('min'); }
+function toggleRadioPanel() { const min = radioEl.classList.toggle('min'); radio.clipVisible(!min); }
+document.getElementById('r-m-audio').onclick = () => radio.setMode('audio');
+document.getElementById('r-m-clip').onclick = () => radio.setMode('clip');
 // un clic dans le lecteur Audiomack lui donne le focus clavier : on le détecte (lecture lancée) et on rend
 // le clavier au jeu pour que les flèches continuent de conduire le taxi
 window.addEventListener('blur', () => setTimeout(() => {
@@ -533,6 +535,7 @@ let radioStarted = false;
 function hud(on) {
   UI.hud(on);
   if (!on) UI.alert(null);
+  radio.clipVisible(on && !radioEl.classList.contains('min'));
   if (on && !radioStarted) {
     radioStarted = true;
     if (radio.saved && radio.saved.station >= 0) radio.restore();
@@ -760,6 +763,7 @@ input.on('KeyM', toggleSound);
 input.on('KeyR', () => { if (state === 'drive') radio.power(); });
 input.on('KeyN', () => { if (state === 'drive') radio.nextTrack(); });
 input.on('KeyT', () => { if (state === 'drive') radio.nextStation(1); });
+input.on('KeyV', () => { if (state === 'drive') radio.toggleMode(); });
 document.getElementById('b-pause').onclick = () => setPause(true);
 document.getElementById('b-cam').onclick = () => { camMode = (camMode + 1) % 3; };
 document.getElementById('b-sound').onclick = toggleSound;
