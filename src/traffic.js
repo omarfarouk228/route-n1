@@ -21,7 +21,8 @@ const TYPES = {
 const _v = new THREE.Vector3();
 
 export class Traffic {
-  constructor(parent, road, rng) {
+  constructor(parent, road, rng, shadows = false) {
+    this.shadows = shadows;
     this.parent = parent;
     this.road = road;
     this.rng = rng;
@@ -36,7 +37,7 @@ export class Traffic {
   get(type) {
     const p = (this.pool[type] ||= []);
     let mesh = p.pop();
-    if (!mesh) mesh = new THREE.Mesh(TYPES[type].geo(), MAT);
+    if (!mesh) { mesh = new THREE.Mesh(TYPES[type].geo(), MAT); mesh.castShadow = this.shadows; }
     mesh.visible = true;
     this.parent.add(mesh);
     return mesh;
@@ -148,6 +149,10 @@ export class Traffic {
         if (dp > 0 && dp < gap && Math.abs(P.x - it.x) < 1.9) { gap = dp; leadV = P.v; }
         gap -= it.len / 2 + 2.5;
         if (gap < 18) desired = Math.min(desired, Math.max(0, leadV) * (gap < 6 ? 0.4 : 0.95));
+        for (const b of r.bumps) {
+          const d = b.s - it.s;
+          if (d > -2 && d < 30) desired = Math.min(desired, 5);
+        }
         for (const cp of cps) {
           const d = cp.s - it.s;
           if (d > -3 && d < 45) desired = Math.min(desired, 4.5);

@@ -4,10 +4,12 @@ import { Road, SHOULDER } from './road.js';
 import { buildScenery, disposeGroup } from './scenery.js';
 import { Traffic } from './traffic.js';
 import { Player } from './vehicle.js';
-import { makeTaxi, makeShadowTexture } from './models.js';
+import { makeTaxi, makeShadowTexture, cloud as cloudGeo } from './models.js';
 import { Input } from './input.js';
 import { Sound } from './audio.js';
-import { Sky, Rain, skyState, makeSkyState } from './sky.js';
+import { Sky, Rain, Clouds, Mountains, skyState, makeSkyState } from './sky.js';
+import { BIOMES } from './data.js';
+import { makeComposer } from './post.js';
 import * as UI from './ui.js';
 import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
 
@@ -15,11 +17,20 @@ import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (isTouch) document.body.classList.add('touch');
 const QUALITY = isTouch ? 0.6 : 1;
+const SHADOWS = !isTouch;
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.25 : 1.5));
+const MAX_PR = Math.min(window.devicePixelRatio || 1, isTouch ? 1.25 : 1.5);
+let pixelRatio = isTouch ? MAX_PR : Math.min(MAX_PR, 1.1);
+renderer.setPixelRatio(pixelRatio);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+if (SHADOWS) {
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+}
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog('#d9ebf6', 70, 470);
@@ -28,6 +39,18 @@ const hemi = new THREE.HemisphereLight('#eef6ff', '#6b5a3a', 1.0);
 scene.add(hemi);
 const sunLight = new THREE.DirectionalLight('#fff1d6', 1.6);
 scene.add(sunLight, sunLight.target);
+if (SHADOWS) {
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  const sc = sunLight.shadow.camera;
+  sc.left = -55; sc.right = 55; sc.top = 55; sc.bottom = -55; sc.near = 10; sc.far = 260;
+  sunLight.shadow.bias = -0.0006;
+  sunLight.shadow.normalBias = 0.04;
+}
+const clouds = new Clouds(cloudGeo(), new THREE.MeshLambertMaterial({ color: '#ffffff', fog: false, emissive: '#7d8796' }));
+scene.add(clouds.mesh);
+const mountains = new Mountains();
+scene.add(mountains.group);
 const sky = new Sky();
 scene.add(sky.mesh);
 const rain = new Rain();
@@ -38,20 +61,25 @@ const WHITE = new THREE.Color('#ffffff');
 const taxi = makeTaxi();
 taxi.group.rotation.order = 'YXZ';
 scene.add(taxi.group);
+taxi.group.traverse((o) => { if (o.isMesh) o.castShadow = SHADOWS; });
 const shadow = new THREE.Mesh(
   new THREE.PlaneGeometry(2.6, 5.4).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false }),
 );
 shadow.position.y = 0.05;
+shadow.castShadow = false;
+shadow.visible = !SHADOWS;
 taxi.group.add(shadow);
 const headlight = new THREE.SpotLight('#fff2cc', 0, 95, 0.55, 0.6, 1.1);
 headlight.position.set(0, 1.0, 2.2);
 headlight.target.position.set(0, 0, 30);
 taxi.group.add(headlight, headlight.target);
 
+const post = isTouch ? null : makeComposer(renderer, scene, camera);
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
+  post?.setSize(w, h, renderer.getPixelRatio());
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
@@ -97,13 +125,13 @@ function loadStage(i) {
   const road = new Road(STAGES[i], i, run.seed + i * 7919);
   const group = new THREE.Group();
   group.add(road.buildMeshes());
-  const scen = buildScenery(road, mulberry32(run.seed + i * 31), QUALITY);
+  const scen = buildScenery(road, mulberry32(run.seed + i * 31), QUALITY, SHADOWS);
   group.add(scen.group);
   const tg = new THREE.Group();
   group.add(tg);
-  const traffic = new Traffic(tg, road, mulberry32(run.seed + i * 131));
+  const traffic = new Traffic(tg, road, mulberry32(run.seed + i * 131), SHADOWS);
   scene.add(group);
-  world = { road, group, traffic, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { road, group, traffic, checkpoints: scen.checkpoints, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
 }
@@ -210,6 +238,24 @@ function updateDrive(dt) {
         if (str > 0.75) quote(run.passengers.some((q) => TRAITS[q.trait].goat) && Math.random() < 0.3 ? 'goat' : 'bump');
       }
     }
+  }
+
+  // ralentisseurs : à franchir au pas
+  const bp = r.bumps;
+  while (world.bumpIdx < bp.length && bp[world.bumpIdx].s < player.s - 3) world.bumpIdx++;
+  for (let k = world.bumpIdx; k < bp.length && bp[k].s < player.s + 1; k++) {
+    const b = bp[k];
+    if (b.hit || Math.abs(b.s - player.s) > 0.8) continue;
+    b.hit = true;
+    const kmh = speed * 3.6;
+    if (kmh > 25) {
+      const str = Math.min(1.8, (kmh - 20) / 30);
+      damage(0.5 + str * 2.5);
+      annoy(4 + str * 12);
+      player.kick(1.5 + str * 3);
+      sound.bump(Math.min(1.6, 0.5 + str));
+      if (kmh > 45) { UI.toast(`Ralentisseur pris à ${Math.round(kmh)} km/h !`, 'warn', 2200); quote('bump', true); }
+    } else player.kick(0.6);
   }
 
   // confort
@@ -582,6 +628,27 @@ function updateLighting() {
   sunLight.position.copy(taxi.group.position).addScaledVector(skySt.sunDir, 100);
   sunLight.target.position.copy(taxi.group.position);
   headlight.intensity = skySt.sun < 0.45 ? 160 * (1 - skySt.sun / 0.45) : 0;
+  if (SHADOWS) sunLight.shadow.camera.updateProjectionMatrix();
+  const B = world.road.biomeAt(clamp(player.s, 0, world.road.length));
+  mountains.update(lastDt, camera, skySt, B.mountains || 0);
+  clouds.update(lastDt, camera, skySt.cloud);
+  clouds.mesh.material.color.copy(WHITE).lerp(skySt.bottom, 0.2).multiplyScalar(0.5 + skySt.sun * 0.5);
+  clouds.mesh.material.emissive.copy(skySt.bottom).lerp(WHITE, 0.25).multiplyScalar(0.25 + skySt.sun * 0.45);
+  post?.mood(skySt, world.weather);
+}
+let lastDt = 0.016;
+
+// résolution dynamique : on vise 60 images/s en ajustant la définition de rendu
+const perf = { t: 0, frames: 0 };
+function adaptResolution(dt) {
+  perf.t += dt; perf.frames++;
+  if (perf.t < 2) return;
+  const fps = perf.frames / perf.t;
+  perf.t = 0; perf.frames = 0;
+  let next = pixelRatio;
+  if (fps < 50) next = Math.max(0.6, pixelRatio - 0.15);
+  else if (fps > 58.5) next = Math.min(MAX_PR, pixelRatio + 0.1);
+  if (Math.abs(next - pixelRatio) > 0.01) { pixelRatio = next; renderer.setPixelRatio(pixelRatio); resize(); }
 }
 
 function hudData() {
@@ -600,6 +667,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  lastDt = dt;
   clock += dt;
   if (!world) return;
   if (state === 'drive' && !paused) {
@@ -613,7 +681,8 @@ function frame(now) {
   updateCamera(dt);
   updateLighting();
   rain.update(dt, camera);
-  renderer.render(scene, camera);
+  if (post) post.composer.render(); else renderer.render(scene, camera);
+  if (!document.hidden) adaptResolution(dt);
 }
 
 startTitle();
@@ -622,5 +691,5 @@ document.fonts?.ready.then(() => setTimeout(UI.loaded, 150));
 setTimeout(UI.loaded, 2500);
 
 // accès de débogage pour les tests manuels
-window.__n1 = { get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
+window.__n1 = { get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
   goto: (i, weather) => { run.stage = i; run.reached = i; if (weather) run.weathers[i] = weather; openGare(); } };

@@ -200,27 +200,377 @@ export function shelter() {
   ]);
 }
 
-const PEOPLE_COLORS = [
-  ['#d03a2f', '#f4c430', true], ['#2f78a8', '#e9e2cf', false], ['#0f7a4a', '#f08a24', true],
-  ['#7b3f99', '#f4c430', true], ['#d9d2c0', '#3a6ea5', false], ['#f08a24', '#1f6b4a', true],
-];
-export function person(i) {
-  const [c1, c2, female] = PEOPLE_COLORS[i % PEOPLE_COLORS.length];
+/* ---------------------------------------------------------------- personnages */
+const sph = (r, c, o) => finish(xf(new THREE.IcosahedronGeometry(r, 1), o), c);
+const SKINS = ['#3b2418', '#4a2e1f', '#5a3a26', '#2f1d14'];
+
+// Silhouette détaillée : pieds, jambes ou pagne, buste, cou, tête, bras avec mains, coiffe.
+function figure(o) {
+  const skin = o.skin || SKINS[0];
   const p = [];
-  if (female) {
-    p.push(cyl(0.26, 0.36, 0.85, 6, c1, { y: 0.43 }));
-    p.push(box(0.46, 0.6, 0.28, c2, { y: 1.15 }));
-    p.push(cyl(0.2, 0.17, 0.2, 6, c1, { y: 1.84 }));
+  const sc = o.scale || 1;
+  const S = (geo) => { geo.scale(sc, sc, sc); return geo; };
+  // pieds (sandales)
+  for (const x of [-0.1, 0.1]) p.push(box(0.11, 0.06, 0.24, '#2a1d14', { x, y: 0.03, z: 0.03 }));
+  if (o.robe) {
+    p.push(cyl(0.22, 0.33, 1.2, 9, o.robe, { y: 0.66 }));
+    p.push(box(0.78, 0.5, 0.2, o.robe, { y: 1.12 }));
+  } else if (o.pagne) {
+    p.push(cyl(0.19, 0.27, 0.86, 9, o.pagne, { y: 0.49 }));
+    p.push(cyl(0.272, 0.276, 0.09, 9, o.band || '#f4c430', { y: 0.11 }));
+    p.push(cyl(0.192, 0.194, 0.07, 9, o.band || '#f4c430', { y: 0.62 }));
   } else {
-    p.push(box(0.42, 0.82, 0.26, '#34343c', { y: 0.41 }));
-    p.push(box(0.48, 0.65, 0.3, c2, { y: 1.14 }));
+    for (const x of [-0.1, 0.1]) p.push(cyl(0.075, 0.066, 0.84, 6, o.pants || '#2f3036', { x, y: 0.48 }));
+    p.push(box(0.36, 0.14, 0.22, o.pants || '#2f3036', { y: 0.9 }));
   }
-  p.push(box(0.11, 0.62, 0.11, SKIN, { x: 0.3, y: 1.12 }));
-  p.push(box(0.11, 0.62, 0.11, SKIN, { x: -0.3, y: 1.12 }));
-  p.push(ico(0.17, SKIN, { y: 1.66 }));
+  // buste
+  p.push(cyl(0.165, 0.15, 0.56, 8, o.top, { y: 1.18, sx: 1.3, sz: 0.85 }));
+  p.push(cyl(0.05, 0.06, 0.1, 6, skin, { y: 1.5 }));
+  p.push(sph(0.12, skin, { y: 1.63, sy: 1.12 }));
+  // bras : le droit peut être levé (porteuse) ; avant-bras et mains
+  for (const side of [-1, 1]) {
+    const up = o.armUp && side === 1;
+    if (up) {
+      p.push(cyl(0.046, 0.04, 0.32, 5, o.sleeve || o.top, { x: 0.27, y: 1.55, rz: -0.25 }));
+      p.push(cyl(0.038, 0.032, 0.3, 5, skin, { x: 0.3, y: 1.84, rz: 0.15 }));
+    } else {
+      p.push(cyl(0.046, 0.04, 0.32, 5, o.sleeve || o.top, { x: side * 0.27, y: 1.28, rz: side * 0.08 }));
+      p.push(cyl(0.038, 0.032, 0.3, 5, skin, { x: side * 0.29, y: 0.99 }));
+      p.push(ico(0.045, skin, { x: side * 0.29, y: 0.82 }));
+    }
+  }
+  // coiffes
+  if (o.hair) p.push(sph(0.124, '#14100d', { y: 1.69, sy: 0.62 }));
+  if (o.wrap) {
+    p.push(sph(0.15, o.wrap, { y: 1.75, sx: 1.25, sy: 0.62, sz: 1.1 }));
+    p.push(box(0.12, 0.1, 0.08, o.wrap, { y: 1.78, z: -0.14 }));
+  }
+  if (o.kufi) p.push(cyl(0.112, 0.118, 0.1, 8, o.kufi, { y: 1.74 }));
+  if (o.cap) { p.push(sph(0.125, o.cap, { y: 1.71, sy: 0.55 })); p.push(box(0.16, 0.02, 0.14, o.cap, { y: 1.69, z: 0.13 })); }
+  // charges
+  if (o.basin) {
+    p.push(cyl(0.34, 0.22, 0.15, 12, o.basin, { y: 1.9 }));
+    p.push(sph(0.24, o.goods || '#e3a21a', { y: 1.98, sy: 0.45 }));
+  }
+  if (o.tray) {
+    p.push(box(0.62, 0.05, 0.46, '#7a5a3a', { y: 1.87 }));
+    for (let k = 0; k < 5; k++) p.push(cyl(0.05, 0.05, 0.36, 6, o.tray, { x: -0.22 + k * 0.11, y: 1.93, rx: Math.PI / 2 }));
+  }
+  if (o.baby) {
+    p.push(cyl(0.17, 0.17, 0.34, 8, o.pagne || o.top, { y: 1.15, z: -0.2, sx: 1.1 }));
+    p.push(sph(0.085, skin, { y: 1.37, z: -0.24 }));
+  }
+  if (o.bag) p.push(box(0.26, 0.3, 0.12, o.bag, { x: 0.28, y: 0.95, z: 0.05 }));
+  return merge(p.map(S));
+}
+
+const PEOPLE = [
+  { pagne: '#d03a2f', band: '#f4c430', top: '#f4c430', wrap: '#d03a2f', skin: SKINS[1] },
+  { pants: '#2f3036', top: '#2f78a8', hair: true, skin: SKINS[0] },
+  { pagne: '#0f7a4a', band: '#f08a24', top: '#f08a24', wrap: '#0f7a4a', baby: true, skin: SKINS[2] },
+  { pagne: '#7b3f99', band: '#f4c430', top: '#e9e2cf', basin: '#2f78a8', goods: '#e3a21a', armUp: true, wrap: '#f4c430', skin: SKINS[3] },
+  { robe: '#e9e6dc', top: '#e9e6dc', kufi: '#f2efe6', skin: SKINS[1] },
+  { pants: '#5a4a36', top: '#d9d2c0', cap: '#c8322b', skin: SKINS[2] },
+  { pagne: '#f08a24', band: '#1f6b4a', top: '#1f6b4a', basin: '#c9ced3', goods: '#d24a2a', armUp: true, wrap: '#f08a24', skin: SKINS[0] },
+  { robe: '#2f5f9f', top: '#2f5f9f', kufi: '#ffffff', skin: SKINS[3] },
+  { pants: '#b59a62', top: '#b59a62', hair: true, scale: 0.72, bag: '#2f5f9f', skin: SKINS[1] },
+  { pagne: '#2f78a8', band: '#ffffff', top: '#f4c430', tray: '#d9a35a', wrap: '#2f78a8', skin: SKINS[2] },
+  { pants: '#2f3036', top: '#f4f0e0', hair: true, skin: SKINS[3] },
+  { pagne: '#c8322b', band: '#2f78a8', top: '#ffffff', wrap: '#2f78a8', skin: SKINS[0] },
+];
+export const PEOPLE_VARIANTS = PEOPLE.length;
+export function person(i) { return figure(PEOPLE[i % PEOPLE.length]); }
+// vendeuses ambulantes (plateau, bassine) : pain, eau, bananes, arachides
+export const VENDOR_SPECS = [
+  { pagne: '#2f78a8', band: '#ffffff', top: '#f4c430', tray: '#d9a35a', wrap: '#2f78a8', skin: SKINS[2] },
+  { pagne: '#d03a2f', band: '#f4c430', top: '#ffffff', basin: '#c9ced3', goods: '#e8f2f8', armUp: true, wrap: '#d03a2f', skin: SKINS[1] },
+  { pagne: '#0f7a4a', band: '#f4c430', top: '#f08a24', basin: '#2f78a8', goods: '#f2d23c', armUp: true, wrap: '#f4c430', skin: SKINS[3] },
+  { pagne: '#7b3f99', band: '#f08a24', top: '#e9e2cf', basin: '#c9ced3', goods: '#9a6a3a', armUp: true, wrap: '#7b3f99', skin: SKINS[0] },
+];
+export const vendorGeo = (i) => figure(VENDOR_SPECS[i % VENDOR_SPECS.length]);
+
+/* ---------------------------------------------------------------- flore régionale */
+export const coco = palm;
+export function oilpalm() {
+  const top = { x: 0, y: 4.6, z: 0 };
+  const p = [cyl(0.32, 0.38, 4.6, 7, '#5f4a34', { y: 2.3 })];
+  for (let k = 0; k < 4; k++) p.push(cyl(0.36, 0.36, 0.14, 7, '#4a3a28', { y: 1 + k * 0.9 }));
+  for (let k = 0; k < 14; k++) p.push(frond((k * 2 * PI) / 14, k % 2 ? 0.15 : 0.55, 3.6, top, k % 3 ? '#2f6b2a' : '#3d7d30'));
+  p.push(ico(0.35, '#a0401a', { x: 0.3, y: 4.3, z: 0.2 }));
   return merge(p);
 }
-export const PEOPLE_VARIANTS = PEOPLE_COLORS.length;
+export function banana() {
+  const p = [cyl(0.12, 0.16, 2.2, 6, '#6f8a3a', { y: 1.1 })];
+  for (let k = 0; k < 7; k++) {
+    const g = new THREE.BoxGeometry(0.55, 0.03, 1.9);
+    g.translate(0, 0, 0.95); g.rotateX(-0.5 + (k % 3) * 0.25); g.rotateY((k * 2 * PI) / 7); g.translate(0, 2.2, 0);
+    p.push(finish(g, k % 2 ? '#5fa83a' : '#4b9a30'));
+  }
+  return merge(p);
+}
+export function fromager() {
+  const b = '#9a9488';
+  const p = [cyl(1.1, 1.8, 14, 8, b, { y: 7 })];
+  for (let k = 0; k < 5; k++) p.push(box(0.25, 2.4, 1.8, b, { y: 1.2, ry: (k * 2 * PI) / 5, x: Math.sin((k * 2 * PI) / 5) * 1.3, z: Math.cos((k * 2 * PI) / 5) * 1.3 }));
+  p.push(box(0.5, 0.5, 7, b, { y: 13, rx: 0.1 }));
+  p.push(box(7, 0.5, 0.5, b, { y: 12.5 }));
+  p.push(ico(4.2, '#3f7a2e', { y: 15.5, sy: 0.38, sx: 1.4 }));
+  p.push(ico(3, '#4a8a35', { x: 3, y: 13.8, sy: 0.4 }));
+  p.push(ico(3, '#386e29', { x: -3, y: 14, z: 1, sy: 0.4 }));
+  return merge(p);
+}
+export function neem() {
+  return merge([
+    cyl(0.18, 0.28, 2.6, 6, '#5a4a3a', { y: 1.3 }),
+    ico(2.1, '#2c5a26', { y: 3.9, sy: 0.85 }),
+    ico(1.5, '#336a2b', { x: 1.1, y: 3.4, z: 0.5 }),
+    ico(1.4, '#284f22', { x: -1, y: 3.6, z: -0.6 }),
+  ]);
+}
+export function ronier() {
+  const p = [
+    cyl(0.28, 0.32, 5, 7, '#6a6258', { y: 2.5 }),
+    cyl(0.42, 0.28, 3, 7, '#6a6258', { y: 6.5 }),
+    cyl(0.25, 0.42, 4, 7, '#6a6258', { y: 10 }),
+  ];
+  for (let k = 0; k < 12; k++) {
+    const a = (k * 2 * PI) / 12;
+    const g = new THREE.CircleGeometry(1.15, 7, -0.9, 1.8);
+    g.rotateX(-PI / 2 + 0.6); g.translate(0, 0, 1.4); g.rotateY(a); g.translate(0, 12.1, 0);
+    p.push(finish(g, k % 2 ? '#5c7a34' : '#6f8a3c'));
+  }
+  return merge(p);
+}
+
+/* ---------------------------------------------------------------- herbes et cultures */
+function tuftGeo(c1, c2, h = 0.6) {
+  return merge([
+    cone(0.18, h, 4, c1, { x: 0, y: h / 2, rz: 0.15 }),
+    cone(0.15, h * 0.8, 4, c2, { x: 0.18, y: h * 0.4, rz: -0.3 }),
+    cone(0.15, h * 0.9, 4, c1, { x: -0.16, y: h * 0.45, z: 0.1, rx: 0.3 }),
+  ]);
+}
+export const grassG = () => tuftGeo('#5d8f34', '#6fa03c', 0.55);
+export const grassD = () => tuftGeo('#c2a660', '#a88e4c', 0.6);
+export function tallGrass() {
+  const p = [];
+  for (let k = 0; k < 6; k++) p.push(cone(0.12, 1.8 + (k % 3) * 0.4, 3, k % 2 ? '#c9ae66' : '#b4954e', { x: Math.sin(k * 1.7) * 0.35, y: 0.95 + (k % 3) * 0.2, z: Math.cos(k * 2.3) * 0.35, rz: (k % 3 - 1) * 0.15 }));
+  return merge(p);
+}
+// rangées de culture : 4 m de rang par instance
+export function maizeRow() {
+  const p = [];
+  for (let k = 0; k < 3; k++) {
+    const z = -1.35 + k * 1.35;
+    p.push(cyl(0.03, 0.04, 1.9, 3, '#7a9a3a', { y: 0.95, z }));
+    p.push(box(1.0, 0.02, 0.14, '#6f9a34', { y: 1.25, z, ry: k * 1.3, rz: 0.25 }));
+    p.push(cone(0.07, 0.35, 3, '#d9c06a', { y: 2.05, z }));
+  }
+  return merge(p);
+}
+export function milletRow() {
+  const p = [];
+  for (let k = 0; k < 4; k++) {
+    const z = -1.5 + k;
+    p.push(cyl(0.025, 0.035, 2.4, 3, '#b8a060', { y: 1.2, z, rz: (k % 2 - 0.5) * 0.08 }));
+    p.push(cyl(0.07, 0.05, 0.4, 4, '#8a5a2e', { y: 2.5, z }));
+  }
+  return merge(p);
+}
+export function cassavaRow() {
+  const p = [];
+  for (let k = 0; k < 3; k++) {
+    const z = -1.3 + k * 1.3;
+    p.push(cyl(0.03, 0.04, 1.3, 4, '#8a6a5a', { y: 0.65, z }));
+    p.push(ico(0.5, '#3f7a2e', { y: 1.35, z, sy: 0.5 }));
+  }
+  return merge(p);
+}
+export function yamRow() {
+  const p = [];
+  for (let k = 0; k < 4; k++) {
+    const z = -1.5 + k;
+    p.push(cone(0.45, 0.55, 6, '#7a4a2e', { y: 0.27, z }));
+    p.push(cyl(0.015, 0.015, 1.5, 3, '#8a7a5a', { y: 1.0, z }));
+    p.push(ico(0.18, '#4f8a34', { y: 1.6, z, sy: 0.7 }));
+  }
+  return merge(p);
+}
+
+/* ---------------------------------------------------------------- bâti régional */
+export function compound() {
+  // concession du nord : mur bas en banco, cases rondes, grenier
+  const mud = '#a8653c', thatch = '#c7a35a';
+  const p = [];
+  const R = 7;
+  for (let k = 0; k < 18; k++) {
+    if (k === 0) continue; // entrée
+    const a = (k * 2 * PI) / 18;
+    p.push(box(2.5, 1.3, 0.35, mud, { x: Math.sin(a) * R, y: 0.65, z: Math.cos(a) * R, ry: a }));
+  }
+  const huts = [[-3, -2.5], [3, -2.8], [-3.8, 2.2], [0.5, -4.2]];
+  huts.forEach(([x, z], i) => {
+    const r = i === 3 ? 1.3 : 1.7;
+    p.push(cyl(r, r + 0.08, 2.1, 9, i % 2 ? '#b0703f' : mud, { x, y: 1.05, z }));
+    p.push(cone(r + 0.7, 2.0, 9, thatch, { x, y: 3.05, z }));
+    p.push(box(0.6, 1.3, 0.1, '#3a2618', { x, y: 0.65, z: z + r }));
+  });
+  // grenier sur pilotis
+  for (const [x, z] of [[2.2, 1.8], [3.0, 1.8], [2.2, 2.6], [3.0, 2.6]]) p.push(cyl(0.08, 0.08, 1, 4, '#5a4632', { x, y: 0.5, z }));
+  p.push(cyl(1.0, 0.8, 1.5, 8, '#9a5e38', { x: 2.6, y: 1.75, z: 2.2 }));
+  p.push(cone(1.4, 1.3, 8, thatch, { x: 2.6, y: 3.1, z: 2.2 }));
+  return merge(p);
+}
+export function granary() {
+  const p = [];
+  for (const [x, z] of [[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]]) p.push(cyl(0.08, 0.08, 1, 4, '#5a4632', { x, y: 0.5, z }));
+  p.push(cyl(1.0, 0.8, 1.5, 8, '#9a5e38', { y: 1.75 }));
+  p.push(cone(1.4, 1.3, 8, '#c7a35a', { y: 3.1 }));
+  return merge(p);
+}
+export function building2(wall = '#e8d9b8', trim = '#2f78a8') {
+  const p = [
+    box(9, 6.2, 6, wall, { y: 3.1 }),
+    box(9.3, 0.25, 7.6, '#d8cdb5', { y: 3.15, z: 0.8 }),
+    box(9.4, 0.5, 6.3, '#d8cdb5', { y: 6.45 }),
+  ];
+  for (let k = 0; k < 3; k++) {
+    p.push(box(2.2, 2.4, 0.08, k === 1 ? '#c8322b' : trim, { x: -3 + k * 3, y: 1.3, z: 3.02 }));
+    p.push(box(1.3, 1.3, 0.08, '#24384a', { x: -3 + k * 3, y: 4.7, z: 3.02 }));
+  }
+  for (let k = 0; k < 9; k++) p.push(box(0.06, 0.9, 0.06, '#3a3a3a', { x: -4.4 + k * 1.1, y: 3.7, z: 4.5 }));
+  p.push(box(9.1, 0.06, 0.06, '#3a3a3a', { y: 4.15, z: 4.5 }));
+  for (const x of [-4.4, 4.4]) p.push(box(0.3, 3, 0.3, '#d8cdb5', { x, y: 1.5, z: 4.4 }));
+  return merge(p);
+}
+export function church() {
+  const p = [
+    box(7, 5, 12, '#f2ece0', { y: 2.5 }),
+    box(4.2, 0.2, 12.6, '#9b3a2e', { x: -1.7, y: 5.8, rz: 0.6 }),
+    box(4.2, 0.2, 12.6, '#9b3a2e', { x: 1.7, y: 5.8, rz: -0.6 }),
+    box(3, 10, 3, '#f2ece0', { y: 5, z: 7 }),
+    cone(2.2, 3, 4, '#9b3a2e', { y: 11.5, z: 7, ry: PI / 4 }),
+    box(0.25, 1.8, 0.25, '#f4c430', { y: 13.8, z: 7 }),
+    box(1.1, 0.25, 0.25, '#f4c430', { y: 14.1, z: 7 }),
+    box(1.4, 2.8, 0.1, '#6a3f22', { y: 1.4, z: 8.52 }),
+  ];
+  for (let k = 0; k < 4; k++) for (const x of [-3.52, 3.52]) p.push(box(0.08, 1.8, 0.9, '#2f78a8', { x, y: 2.8, z: -4 + k * 2.6 }));
+  return merge(p);
+}
+export function mosque() {
+  const W = '#f1e8d2', G = '#1f7a4f';
+  const p = [
+    box(10, 4.2, 10, W, { y: 2.1 }),
+    box(10.3, 0.4, 10.3, G, { y: 4.3 }),
+    sph(3.2, '#e9e2cf', { y: 4.5, sy: 0.85 }),
+    cyl(0.06, 0.06, 1.2, 4, '#f4c430', { y: 7.6 }),
+    cyl(0.9, 1.1, 14, 8, W, { x: 5.6, y: 7, z: 5.6 }),
+    cyl(1.3, 1.3, 0.4, 8, G, { x: 5.6, y: 11.5, z: 5.6 }),
+    sph(0.9, G, { x: 5.6, y: 14.2, z: 5.6, sy: 1.1 }),
+    box(2.2, 3, 0.1, G, { y: 1.5, z: 5.02 }),
+  ];
+  for (let k = 0; k < 3; k++) p.push(box(1, 1.8, 0.1, '#24384a', { x: -3.4 + k * 3.4, y: 2.6, z: 5.02 }));
+  return merge(p);
+}
+export function school() {
+  const p = [
+    box(16, 3.2, 6, '#efe0b8', { y: 1.6 }),
+    box(16.6, 0.15, 8, '#9aa0a6', { y: 3.35, z: 0.8, rx: 0.06 }),
+    box(16.1, 0.8, 6.1, '#c8322b', { y: 0.4 }),
+  ];
+  for (let k = 0; k < 5; k++) p.push(box(1.6, 1.2, 0.08, '#24384a', { x: -6 + k * 3, y: 1.9, z: 3.02 }));
+  for (let k = 0; k < 6; k++) p.push(box(0.25, 3, 0.25, '#efe0b8', { x: -7.5 + k * 3, y: 1.5, z: 4.6 }));
+  return merge(p);
+}
+export function kiosk(c = '#2f78a8') {
+  return merge([
+    box(2.6, 2.4, 2.2, c, { y: 1.2 }),
+    box(3, 0.12, 2.8, '#9aa0a6', { y: 2.5, z: 0.2 }),
+    box(2.2, 1, 0.1, '#1b1a17', { y: 1.3, z: 1.11 }),
+    box(2.4, 0.08, 0.6, '#d8cdb5', { y: 0.95, z: 1.35 }),
+  ]);
+}
+export function fuelStation() {
+  const p = [
+    box(14, 0.6, 9, '#f4f0e0', { y: 5.3 }),
+    box(14.05, 0.3, 9.05, '#c8322b', { y: 5.0 }),
+    box(9, 3.4, 5, '#f4f0e0', { y: 1.7, z: -9 }),
+    box(9.05, 0.6, 5.05, '#c8322b', { y: 3.1, z: -9 }),
+  ];
+  for (const [x, z] of [[-5, -3], [5, -3], [-5, 3], [5, 3]]) p.push(box(0.4, 5, 0.4, '#d8d8d8', { x, y: 2.5, z }));
+  for (const x of [-2.5, 2.5]) {
+    p.push(box(0.9, 0.3, 2.4, '#9aa0a6', { x, y: 0.15 }));
+    p.push(box(0.6, 1.7, 0.9, '#c8322b', { x, y: 1.15 }));
+    p.push(box(0.5, 0.5, 0.92, '#f4f0e0', { x, y: 1.6 }));
+  }
+  return merge(p);
+}
+export function tower() {
+  const p = [];
+  for (let k = 0; k < 8; k++) {
+    const w = 2.2 - k * 0.22;
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) p.push(box(0.12, 4.2, 0.12, k % 2 ? '#f4f0e0' : '#d03a2f', { x: (x * w) / 2, y: 2.1 + k * 4, z: (z * w) / 2 }));
+    p.push(box(w, 0.08, 0.08, '#9aa0a6', { y: k * 4 + 2, z: w / 2 }));
+    p.push(box(0.08, 0.08, w, '#9aa0a6', { y: k * 4 + 2, x: w / 2 }));
+  }
+  p.push(cyl(0.6, 0.6, 0.2, 10, '#e8e8e8', { y: 30, z: 0.5, rx: PI / 2 }));
+  p.push(box(0.4, 1.4, 0.2, '#e8e8e8', { y: 28.5, x: 0.5 }));
+  return merge(p);
+}
+export function flagpole() {
+  return merge([cyl(0.05, 0.07, 7, 5, '#cfcfcf', { y: 3.5 }), box(0.6, 0.3, 0.6, '#9aa0a6', { y: 0.15 })]);
+}
+
+/* ---------------------------------------------------------------- bord de route */
+export function yamPile() {
+  const p = [box(1.4, 0.06, 1, '#7a5a3a', { y: 0.03 })];
+  const pos = [[-0.4, -0.2], [0, -0.2], [0.4, -0.2], [-0.2, 0.2], [0.2, 0.2], [-0.2, -0.05], [0.2, -0.05], [0, 0.1]];
+  pos.forEach(([x, z], k) => p.push(cyl(0.11, 0.08, 0.55, 6, k % 2 ? '#8a6a48' : '#7a5a3c', { x, y: 0.12 + (k > 4 ? 0.18 : 0), z, rz: PI / 2, ry: k * 0.3 })));
+  return merge(p);
+}
+export function charcoal() {
+  const p = [];
+  for (let k = 0; k < 5; k++) {
+    p.push(cyl(0.28, 0.3, 0.9, 7, '#eceae4', { x: -1 + k * 0.5, y: 0.45 }));
+    p.push(sph(0.26, '#1c1b1a', { x: -1 + k * 0.5, y: 0.95, sy: 0.5 }));
+  }
+  return merge(p);
+}
+export function firewood() {
+  const p = [];
+  for (let k = 0; k < 9; k++) p.push(cyl(0.06, 0.06, 1.6, 4, k % 2 ? '#6a4a30' : '#7a5a3c', { x: -0.3 + (k % 3) * 0.2, y: 0.08 + Math.floor(k / 3) * 0.12, rx: PI / 2 }));
+  p.push(box(0.04, 0.5, 0.04, '#5a4632', { x: -0.45, y: 0.25 }));
+  p.push(box(0.04, 0.5, 0.04, '#5a4632', { x: 0.45, y: 0.25 }));
+  return merge(p);
+}
+export function basins() {
+  const p = [box(1.6, 0.6, 0.8, '#7a5a3a', { y: 0.3 })];
+  const goods = ['#d24a2a', '#e3a21a', '#62a12e'];
+  for (let k = 0; k < 3; k++) {
+    p.push(cyl(0.3, 0.2, 0.15, 10, '#c9ced3', { x: -0.5 + k * 0.5, y: 0.68 }));
+    p.push(sph(0.2, goods[k], { x: -0.5 + k * 0.5, y: 0.76, sy: 0.5 }));
+  }
+  p.push(cyl(0.03, 0.03, 2.2, 4, '#dddddd', { x: 0.75, y: 1.1 }));
+  p.push(cone(1.1, 0.4, 8, '#2f78a8', { x: 0.75, y: 2.2 }));
+  return merge(p);
+}
+export function motoParked() {
+  return merge([
+    box(0.22, 0.45, 1.5, '#262626', { y: 0.6 }),
+    box(0.3, 0.12, 0.7, '#111', { y: 0.88, z: -0.15 }),
+    cyl(0.3, 0.3, 0.12, 8, '#1a1a1a', { rz: PI / 2, y: 0.3, z: 0.62 }),
+    cyl(0.3, 0.3, 0.12, 8, '#1a1a1a', { rz: PI / 2, y: 0.3, z: -0.62 }),
+    box(0.7, 0.05, 0.05, '#888', { y: 1.05, z: 0.55 }),
+    box(0.25, 0.25, 0.08, '#c8322b', { y: 0.7, z: 0.78 }),
+  ]);
+}
+export function cloud() {
+  const blob = (r, x, y, z, sy = 0.62) => finish(xf(new THREE.IcosahedronGeometry(r, 1), { x, y, z, sy }), '#ffffff');
+  return merge([
+    blob(16, 0, 0, 0), blob(12, 15, -2, 3), blob(13, -14, -2.5, -2), blob(10, 5, 5, -5, 0.7),
+    blob(9, -6, 4, 6, 0.7), blob(8, 24, -4, -2), blob(8, -23, -4, 3),
+  ]);
+}
 
 /* ---------------------------------------------------------------- véhicules */
 function wheelGeo(r = 0.36, w = 0.26) {

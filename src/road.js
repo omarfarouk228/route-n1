@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { BIOMES } from './data.js';
 import { MAT } from './models.js';
-import { mulberry32, noise2, smoothstep, clamp, rand } from './util.js';
+import { mulberry32, noise2, smoothstep, clamp, rand, weighted } from './util.js';
+import { routeIndex, headingAt as realHeading } from './geo.js';
+import { TERRAIN_MAT, WATER_MAT, CONCRETE_MAT } from './terrainmat.js';
 
 export const DS = 2; // pas d'échantillonnage de l'axe (m)
 export const HALF_ROAD = 4; // demi-largeur du goudron
@@ -9,7 +11,7 @@ export const SHOULDER = 7.2; // bord extérieur des accotements en latérite
 const S0 = -90; // la route commence un peu derrière la gare
 const EXTRA = 220; // et se prolonge dans la ville d'arrivée
 
-const TERRAIN_OFFS = [7.2, 8.6, 10.5, 13.5, 18, 25, 35, 50, 72, 105, 150];
+const TERRAIN_OFFS = [7.2, 8.6, 10.5, 13.5, 17, 21, 26, 32, 40, 50, 62, 78, 100, 128, 160];
 const _col = new THREE.Color();
 const _a = new THREE.Color();
 const _b = new THREE.Color();
@@ -23,6 +25,13 @@ const ROCK1 = new THREE.Color('#7d746a');
 const ASPH0 = new THREE.Color('#3b3b3d');
 const ASPH1 = new THREE.Color('#4b4945');
 const ASPH_PATCH = new THREE.Color('#2d2c2c');
+const SOIL = new THREE.Color('#7a4a2e');
+const SOIL_DRY = new THREE.Color('#9a7048');
+const CHAR = new THREE.Color('#2b2724');
+const ASH = new THREE.Color('#6a5f55');
+const MUD = new THREE.Color('#5e4e36');
+const STONE = new THREE.Color('#7d6a52');
+const CONCRETE = new THREE.Color('#bdb6a8');
 
 export class Road {
   constructor(stage, stageIndex, seed) {
@@ -35,6 +44,7 @@ export class Road {
     this.boundaries = [];
     let acc = 0;
     for (const z of stage.zones) { acc = z.until * this.length; this.boundaries.push(acc); }
+    this.rivers = (stage.rivers || []).map((r) => ({ s: r.t * this.length, name: r.name, depth: 7, w: 22 }));
     this.generate();
     this.features();
   }
@@ -92,11 +102,17 @@ export class Road {
         }
       }
       if (s < 120 || s > this.length - 160) { kT = 0; gT = 0; }
+      if (this.rivers.some((r) => Math.abs(r.s - s) < 140)) { kT = 0; gT = 0; }
       segLeft -= DS;
       kCur += (kT - kCur) * Math.min(1, DS / 30);
       gCur += (gT - gCur) * Math.min(1, DS / 50);
-      this.px[i] = x; this.py[i] = y; this.pz[i] = z; this.h[i] = head; this.k[i] = kCur; this.grade[i] = gCur;
-      head += kCur * DS;
+      // courbure réelle de la N1 (tracé OpenStreetMap lissé) + relief procédural
+      const tt = clamp(s / this.length, 0, 1);
+      const fi0 = routeIndex(this.index, tt), fi1 = routeIndex(this.index, clamp((s + DS) / this.length, 0, 1));
+      const kReal = s < 0 || s > this.length ? 0 : clamp(-(realHeading(fi1) - realHeading(fi0)) / DS, -0.008, 0.008);
+      const kTot = (B.cliff ? kCur : kCur * 0.55) + kReal;
+      this.px[i] = x; this.py[i] = y; this.pz[i] = z; this.h[i] = head; this.k[i] = kTot; this.grade[i] = gCur;
+      head += kTot * DS;
       x += Math.sin(head) * DS;
       z += Math.cos(head) * DS;
       y += gCur * DS;
@@ -151,6 +167,14 @@ export class Road {
     y -= 0.55 * smoothstep(SHOULDER, 8.6, d) * (1 - smoothstep(9.5, 13, d));
     const c = this.cliff[i];
     if (c > 0) y += c * (24 + noise2(wx * 0.05, wz * 0.05) * 14) * smoothstep(9.5, 17, d);
+    const si = this.sAt(i);
+    for (const r of this.rivers) {
+      const ds = Math.abs(si - r.s);
+      if (ds < r.w / 2 + 45) {
+        const dip = r.depth * (1 - smoothstep(r.w / 2, r.w / 2 + 40, ds)) * smoothstep(SHOULDER, SHOULDER + 3, d);
+        y = Math.min(y, base - dip + (y - base) * smoothstep(r.w / 2, r.w / 2 + 40, ds));
+      }
+    }
     return y;
   }
 
@@ -174,6 +198,16 @@ export class Road {
     const y = this.meshH(i0, off) * (1 - t) + this.meshH(i1, off) * t;
     out.set(f.x - Math.cos(f.h) * off, y, f.z + Math.sin(f.h) * off);
     return out;
+  }
+
+  fieldAt(s, off) {
+    const side = off < 0 ? -1 : 1, d = Math.abs(off);
+    for (const f of this.fields) if (f.side === side && s >= f.s0 && s <= f.s1 && d >= f.o0 && d <= f.o1) return f;
+    return null;
+  }
+  bridgeAt(s) {
+    for (const r of this.rivers) if (Math.abs(s - r.s) < r.w / 2 + 16) return r;
+    return null;
   }
 
   wallLimit(s) {
@@ -227,6 +261,40 @@ export class Road {
     }
     this.potholes.sort((a, b) => a.s - b.s);
 
+    // champs autour des villages (le sol est labouré sous les rangs)
+    this.fields = [];
+    const span = (v) => (v.named ? 118 : 52);
+    const addField = (s0, len, side, crop) => {
+      const o0 = rand(rng, 14, 24), o1 = o0 + rand(rng, 18, crop === 'teak' ? 70 : 42);
+      const f = { s0, s1: s0 + len, side, o0, o1, crop };
+      const clash = this.fields.some((g) => g.side === side && g.s0 < f.s1 + 8 && f.s0 < g.s1 + 8)
+        || this.rivers.some((r) => Math.abs(r.s - (s0 + len / 2)) < 90)
+        || this.biomeAt(s0).cliff || this.biomeAt(s0 + len).cliff || s0 < 60 || f.s1 > L - 60;
+      if (!clash) this.fields.push(f);
+    };
+    for (const v of this.villages) {
+      const B = this.biomeAt(v.s);
+      const crops = B.crops || {};
+      if (!Object.keys(crops).length) continue;
+      const n = 2 + Math.floor(rng() * 3);
+      for (let k = 0; k < n; k++) {
+        const dir = rng() < 0.5 ? -1 : 1;
+        const len = rand(rng, 26, 60);
+        const s0 = v.s + dir * (span(v) + 12 + rng() * 120) - (dir < 0 ? len : 0);
+        addField(s0, len, rng() < 0.5 ? -1 : 1, weighted(rng, crops));
+      }
+    }
+    for (let ps = 200; ps < L - 200; ps += 260) {
+      const B = this.biomeAt(ps);
+      if (B.plantation && rng() < 0.5) addField(ps + rng() * 80, rand(rng, 60, 120), rng() < 0.5 ? -1 : 1, B.plantation);
+      else if (B.crops && Object.keys(B.crops).length && rng() < 0.35) addField(ps + rng() * 80, rand(rng, 25, 50), rng() < 0.5 ? -1 : 1, weighted(rng, B.crops));
+    }
+
+    // ralentisseurs à l'entrée et à la sortie des agglomérations
+    this.bumps = [];
+    for (const v of this.villages) for (const d of [-1, 1]) this.bumps.push({ s: v.s + d * (span(v) + 6), hit: false });
+    this.bumps.sort((a, b) => a.s - b.s);
+
     // traversées d'animaux près des villages
     this.crossings = [];
     for (const v of this.villages) {
@@ -247,6 +315,8 @@ export class Road {
     }
     for (const c of this.checkpoints) this.notes.push({ s: c.s - 260, text: 'Contrôle routier dans 250 m : passe sous 20 km/h', kind: 'warn' });
     for (const f of this.fuelStops) this.notes.push({ s: f.s - 220, text: 'Vendeuse d’essence à 200 m : arrête-toi sur le bas-côté droit', kind: 'fuel' });
+    for (const r of this.rivers) if (r.name) this.notes.push({ s: r.s - 90, text: `Pont sur le ${r.name}`, kind: 'town' });
+    for (const v of this.villages) if (!v.named) this.notes.push({ s: v.s - span(v) - 60, text: 'Village : ralentisseurs, enfants et animaux', kind: 'info', soft: true });
     this.notes.sort((a, b) => a.s - b.s);
     for (const nt of this.notes) nt.shown = false;
   }
@@ -276,9 +346,17 @@ export class Road {
       out.copy(BIOME_COLORS[m.a].sh).lerp(BIOME_COLORS[m.b].sh, m.t);
       out.multiplyScalar(0.92 + noise2(this.sAt(i) * 0.08, off) * 0.16);
     };
-    const shoulderH = (i, off) => this.py[i] - (Math.abs(off) > HALF_ROAD + 0.1 ? 0.12 : 0.02);
-    g.add(this.ribbon(rowsAll(1), [-SHOULDER, -HALF_ROAD], shoulderH, shoulderColor));
-    g.add(this.ribbon(rowsAll(1), [HALF_ROAD, SHOULDER], shoulderH, shoulderColor));
+    const shoulderH = (i, off) => {
+      const a = Math.abs(off);
+      if (a > 5.5 && this.bridgeAt(this.sAt(i))) return this.py[i] - 2.6; // poutre latérale du pont
+      return this.py[i] - (a > HALF_ROAD + 0.1 ? 0.12 : 0.02);
+    };
+    const shColor = (i, off, out) => {
+      if (this.bridgeAt(this.sAt(i))) { out.copy(CONCRETE); return; }
+      shoulderColor(i, off, out);
+    };
+    g.add(this.ribbon(rowsAll(1), [-SHOULDER, -5.5, -HALF_ROAD], shoulderH, shColor));
+    g.add(this.ribbon(rowsAll(1), [HALF_ROAD, 5.5, SHOULDER], shoulderH, shColor));
 
     // terrain des deux côtés
     const terrainColor = (i, off, out, y) => {
@@ -293,6 +371,27 @@ export class Road {
       out.copy(_a).lerp(_b, m.t);
       const rel = y - this.py[i];
       if (rel > 1.5 && this.cliff[i] > 0) out.lerp(_col.copy(ROCK0).lerp(ROCK1, noise2(wx * 0.1, wz * 0.1)), smoothstep(1.5, 6, rel) * Math.min(1, this.cliff[i] * 1.5) * (Math.abs(off) < 40 ? 1 : 0.4));
+      const Bm = BIOMES[m.t < 0.5 ? m.a : m.b];
+      const sh = BIOME_COLORS[m.t < 0.5 ? m.a : m.b].sh;
+      // latérite à nu
+      if (Bm.bare && noise2(wx * 0.045 + 9, wz * 0.045 + 3) > 1 - Bm.bare * 0.55) out.lerp(sh, 0.55);
+      // brûlis de saison sèche
+      if (Bm.burnt) {
+        const b = noise2(wx * 0.014 + 31, wz * 0.014 - 7);
+        const th = 1 - Bm.burnt * 0.55;
+        if (b > th) out.lerp(CHAR, Math.min(0.85, (b - th) * 9));
+        else if (b > th - 0.04) out.lerp(ASH, 0.35);
+      }
+      // terrasses kabyè : murets de pierre sur les pentes
+      if (Bm.terraces && rel > 2.5) {
+        const fr = ((y / 1.7) % 1 + 1) % 1;
+        if (fr < 0.22) out.lerp(STONE, 0.7); else out.lerp(SOIL_DRY, 0.25);
+      }
+      // champs labourés
+      const fl = this.fieldAt(s, off);
+      if (fl) out.lerp(fl.crop === 'millet' ? SOIL_DRY : SOIL, fl.crop === 'teak' ? 0.25 : 0.7);
+      // berges boueuses
+      if (this.rivers.length && rel < -3) out.lerp(MUD, smoothstep(-3, -6, rel));
       if (Math.abs(off) < 9) out.lerp(BIOME_COLORS[m.a].sh, 0.35);
     };
     const rightOffs = TERRAIN_OFFS;
@@ -301,10 +400,64 @@ export class Road {
     g.add(this.ribbon(tRows, leftOffs, (i, off) => this.terrainH(i, off), terrainColor));
     g.add(this.ribbon(tRows, rightOffs, (i, off) => this.terrainH(i, off), terrainColor));
 
+    for (const r of this.rivers) g.add(this.riverMesh(r));
     // marquage : pointillés au centre (ligne continue dans la faille), lignes de rive
     g.add(this.markings(inFaille));
     g.add(this.potholeMesh());
+    if (this.bumps.length) g.add(this.bumpMesh());
     return g;
+  }
+
+  // rivière (plan d'eau perpendiculaire), parapets en béton et piles du pont
+  riverMesh(r) {
+    const grp = new THREE.Group();
+    const f = this.sample(r.s);
+    const cx = f.x, cz = f.z, y0 = f.y - r.depth + 1.1;
+    const fx = Math.sin(f.h), fz = Math.cos(f.h), rx = -Math.cos(f.h), rz = Math.sin(f.h);
+    const W = r.w / 2 + 2, Lr = 190;
+    const pts = [[-W, -Lr], [W, -Lr], [-W, Lr], [W, Lr]].map(([a, b]) => [cx + fx * a + rx * b, y0, cz + fz * a + rz * b]);
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute([...pts[0], ...pts[2], ...pts[1], ...pts[1], ...pts[2], ...pts[3]], 3));
+    wg.computeVertexNormals();
+    const water = new THREE.Mesh(wg, WATER_MAT);
+    water.receiveShadow = true;
+    grp.add(water);
+    // parapets
+    const pos = [];
+    const i0 = Math.floor(this.idx(r.s - r.w / 2 - 15)), i1 = Math.ceil(this.idx(r.s + r.w / 2 + 15));
+    for (const side of [-1, 1]) {
+      for (let i = i0; i < i1; i++) {
+        for (const [o1, o2] of [[5.2, 5.2], [5.5, 5.5]]) {
+          const off = side * o1;
+          const a = [this.px[i] - Math.cos(this.h[i]) * off, this.py[i] - 0.05, this.pz[i] + Math.sin(this.h[i]) * off];
+          const b = [this.px[i + 1] - Math.cos(this.h[i + 1]) * off, this.py[i + 1] - 0.05, this.pz[i + 1] + Math.sin(this.h[i + 1]) * off];
+          const H = 0.95;
+          pos.push(...a, ...b, a[0], a[1] + H, a[2], ...b, b[0], b[1] + H, b[2], a[0], a[1] + H, a[2]);
+          void o2;
+        }
+        const offA = side * 5.2, offB = side * 5.5;
+        const top = (ii, off) => [this.px[ii] - Math.cos(this.h[ii]) * off, this.py[ii] + 0.9, this.pz[ii] + Math.sin(this.h[ii]) * off];
+        pos.push(...top(i, offA), ...top(i + 1, offA), ...top(i, offB), ...top(i + 1, offA), ...top(i + 1, offB), ...top(i, offB));
+      }
+    }
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    pg.computeVertexNormals();
+    const para = new THREE.Mesh(pg, CONCRETE_MAT.clone());
+    para.material.side = THREE.DoubleSide;
+    para.castShadow = true;
+    grp.add(para);
+    // piles
+    for (let ps = r.s - r.w / 2; ps <= r.s + r.w / 2 + 0.1; ps += r.w / 2) {
+      for (const off of [-3, 3]) {
+        const p = this.toWorld(ps, off, new THREE.Vector3());
+        const pil = new THREE.Mesh(new THREE.BoxGeometry(1.1, r.depth + 1, 1.6), CONCRETE_MAT);
+        pil.position.set(p.x, p.y - (r.depth + 1) / 2 - 0.2, p.z);
+        pil.rotation.y = this.headingAt(ps);
+        grp.add(pil);
+      }
+    }
+    return grp;
   }
 
   ribbon(rows, offs, heightFn, colorFn) {
@@ -338,7 +491,9 @@ export class Road {
     geo.setIndex(idx);
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
-    return new THREE.Mesh(geo, MAT);
+    const mesh = new THREE.Mesh(geo, TERRAIN_MAT);
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   markings(inFaille) {
@@ -368,6 +523,32 @@ export class Road {
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: '#e8e4d6', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     return m;
+  }
+
+  // ralentisseurs peints en jaune et noir
+  bumpMesh() {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 16;
+    const gx = c.getContext('2d');
+    for (let k = 0; k < 8; k++) { gx.fillStyle = k % 2 ? '#1b1a17' : '#e8c22a'; gx.fillRect(k * 16, 0, 16, 16); }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const geo = new THREE.CylinderGeometry(0.6, 0.6, 8, 10, 1, false, 0, Math.PI);
+    geo.rotateZ(Math.PI / 2); // demi-cylindre couché en travers de la route
+    geo.scale(1, 0.22, 1);
+    const mat = new THREE.MeshLambertMaterial({ map: tex });
+    const im = new THREE.InstancedMesh(geo, mat, this.bumps.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
+    this.bumps.forEach((b, k) => {
+      this.toWorld(b.s, 0, p);
+      q.setFromAxisAngle(up, this.headingAt(b.s));
+      m4.compose(p, q, one);
+      im.setMatrixAt(k, m4);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    im.computeBoundingSphere();
+    im.receiveShadow = true;
+    return im;
   }
 
   potholeMesh() {
