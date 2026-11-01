@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Route N1 · Taxi-brousse de Lomé à Dapaong</title>
   <meta name="description" content="Conduis un taxi-brousse sur la Nationale 1 du Togo, de Lomé à Dapaong. Choisis tes passagers, double les camions, gère l'essence et passe la faille d'Alédjo. Gratuit, dans le navigateur, sur PC et mobile.">
-  <meta name="theme-color" content="#0f5c3c">
+  <meta name="theme-color" content="#0c110e">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Route N1 · Taxi-brousse de Lomé à Dapaong">
   <meta property="og:description" content="600 km de N1 en taxi-brousse : passagers, camions, contrôles, faille d'Alédjo. Jeu gratuit dans le navigateur.">
@@ -16,7 +16,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:ital,wdth,wght@0,62..125,400..900;1,62..125,400..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
@@ -24,58 +24,68 @@
 
   <div id="hud" hidden>
     <div class="hud-top">
-      <div class="card stage">
-        <div class="eyebrow" id="h-stage">Étape 1/6</div>
+      <div class="glass stage">
+        <div class="tag" id="h-stage">Étape 1/6</div>
         <div class="route" id="h-route">Lomé → Tsévié</div>
-        <div class="dist"><b id="h-dist">35</b> km · <span id="h-pax">0/7 passagers</span></div>
+        <div class="meta"><b id="h-dist">32</b> km · <span id="h-pax">0/7 passagers</span></div>
       </div>
       <div class="routebar" aria-hidden="true">
         <div class="track"><div class="fill" id="h-fill"></div><div class="dot" id="h-dot"></div></div>
         <div class="cities" id="h-cities"></div>
       </div>
-      <div class="card wallet">
+      <div class="glass wallet">
         <div class="money" id="h-money">0 F</div>
-        <div class="clock" id="h-clock">06h00</div>
+        <div class="clock"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="h-clock">06h00</span></div>
       </div>
     </div>
     <div id="toasts" aria-live="polite"></div>
+    <div id="banner" aria-live="polite"></div>
     <div class="hud-bottom">
       <div class="left-stack">
-      <canvas id="minimap" aria-label="Mini-carte"></canvas>
-      <div class="card gauges">
-        <div class="g"><span>Essence</span><div class="bar"><i id="g-fuel"></i></div><em id="g-fuel-t">30 L</em></div>
-        <div class="g"><span>Taxi</span><div class="bar"><i id="g-hp"></i></div><em id="g-hp-t">100 %</em></div>
-        <div class="g"><span>Confort</span><div class="bar"><i id="g-comfort"></i></div><em id="g-pax">0/7</em></div>
+        <canvas id="minimap" aria-label="Mini-carte"></canvas>
+        <div class="glass gauges">
+          <div class="g"><svg viewBox="0 0 24 24" aria-label="Essence"><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h14M7 8h6M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg><div class="bar"><i id="g-fuel"></i></div><em id="g-fuel-t">30 L</em></div>
+          <div class="g"><svg viewBox="0 0 24 24" aria-label="État du taxi"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg><div class="bar"><i id="g-hp"></i></div><em id="g-hp-t">100 %</em></div>
+          <div class="g"><svg viewBox="0 0 24 24" aria-label="Confort"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9.5h.01M15 9.5h.01"/></svg><div class="bar"><i id="g-comfort"></i></div><em id="g-pax">—</em></div>
+        </div>
       </div>
+      <div class="speedo" aria-label="Vitesse">
+        <svg viewBox="0 0 170 170" aria-hidden="true">
+          <circle class="sp-bg" cx="85" cy="85" r="80"/>
+          <circle class="sp-trk" cx="85" cy="85" r="68"/>
+          <circle class="sp-val" id="sp-arc" cx="85" cy="85" r="68"/>
+          <g class="sp-ticks" id="sp-ticks"></g>
+        </svg>
+        <div class="sp-num"><b id="h-speed">0</b><span>km/h</span></div>
+        <div class="sp-gear"><span>RAPPORT</span><b id="h-gear">N</b></div>
       </div>
-      <div class="card speed"><b id="h-speed">0</b><span>km/h</span></div>
     </div>
     <div class="hud-btns">
-      <button id="b-cam" title="Changer de caméra (C)">Caméra</button>
-      <button id="b-sound" title="Couper le son (M)">Son</button>
-      <button id="b-pause" title="Pause (P / Échap)">Pause</button>
+      <button id="b-cam" title="Changer de caméra (C)" aria-label="Caméra"><svg viewBox="0 0 24 24"><path d="M3 8h3l2-3h8l2 3h3v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      <button id="b-sound" title="Couper le son (M)" aria-label="Son"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+      <button id="b-pause" title="Pause (P / Échap)" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
     </div>
   </div>
 
   <div id="radio" class="radio" hidden>
     <div class="r-head">
       <span class="r-freq" id="r-freq">FM</span>
-      <div class="r-info"><b id="r-station">Radio éteinte</b><span id="r-track">Touche R ou ⏻ pour allumer</span></div>
+      <div class="r-info"><b id="r-station">Radio éteinte</b><span id="r-track">Touche R pour allumer</span></div>
     </div>
     <div class="r-video" id="r-video" hidden><div id="r-yt"></div></div>
     <div class="r-btns">
-      <button id="r-prev" title="Station précédente" aria-label="Station précédente">◀</button>
-      <button id="r-power" title="Allumer ou éteindre (R)" aria-label="Allumer ou éteindre la radio">⏻</button>
-      <button id="r-next" title="Station suivante (T)" aria-label="Station suivante">▶</button>
-      <button id="r-skip" title="Titre suivant (N)" aria-label="Titre suivant">⏭</button>
+      <button id="r-prev" title="Station précédente" aria-label="Station précédente"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button id="r-power" title="Allumer ou éteindre (R)" aria-label="Allumer ou éteindre la radio"><svg viewBox="0 0 24 24"><path d="M12 3v8M6.3 7.3a8 8 0 1 0 11.4 0"/></svg></button>
+      <button id="r-next" title="Station suivante (T)" aria-label="Station suivante"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button id="r-skip" title="Titre suivant (N)" aria-label="Titre suivant"><svg viewBox="0 0 24 24"><path d="M5 5l9 7-9 7zM18 5v14"/></svg></button>
     </div>
     <div class="r-note" id="r-note"></div>
   </div>
 
   <div id="touch" hidden>
     <div class="t-left">
-      <button data-k="left" aria-label="Gauche">◀</button>
-      <button data-k="right" aria-label="Droite">▶</button>
+      <button data-k="left" aria-label="Gauche"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button data-k="right" aria-label="Droite"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
     <div class="t-right">
       <button data-k="horn" class="horn">Klaxon</button>
@@ -92,7 +102,7 @@
   <section class="screen modal" id="s-pause"></section>
   <section class="screen modal" id="s-modal"></section>
 
-  <div id="loading"><div class="ld-title">ROUTE N1</div><div class="ld-sub">On charge le taxi…</div></div>
+  <div id="loading"><div class="ld-logo"><span class="ld-n1">N1</span><span class="ld-word">ROUTE</span></div><div class="ld-bar"><i></i></div><div class="ld-sub">Lomé → Dapaong · on charge le taxi</div></div>
 
   <script type="module" src="/src/main.js"></script>
 </body>

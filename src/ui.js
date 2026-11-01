@@ -4,6 +4,15 @@ import { VEHICLES, PALETTE, STRIPES, RIMS, SLOGANS, cleanText } from './garage.j
 import { drawFullMap, drawMiniMap } from './map.js';
 
 const $ = (s) => document.querySelector(s);
+const ICONS = {
+  commerce: '<svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 11h-13zM8 9V7a4 4 0 0 1 8 0v2"/></svg>',
+  presse: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
+  malade: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 16c1-1.2 2.4-1.8 4-1.8s3 .6 4 1.8M8.5 9.5l2 1M15.5 9.5l-2 1"/></svg>',
+  etudiant: '<svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5"/></svg>',
+  ancien: '<svg viewBox="0 0 24 24"><circle cx="11" cy="5" r="2.5"/><path d="M9 21l1.5-7L8 10l3-2 2 3 3 1M14 14l3 7M18 12v9"/></svg>',
+  chevre: '<svg viewBox="0 0 24 24"><path d="M5 12h10l2-3 3 1-1 3-2 1v6M7 12v7M13 12v7M17 9l-1-4M19 10l1-4"/></svg>',
+  agent: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>',
+};
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function show(id) {
@@ -28,7 +37,16 @@ export function toast(html, kind = 'info', ms = 2800) {
   box.appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 380); }, ms);
 }
-export function clearToasts() { toastsEl().innerHTML = ''; }
+export function clearToasts() { toastsEl().innerHTML = ''; $('#banner').innerHTML = ''; }
+export function banner(kicker, title, sub = '', ms = 2800) {
+  const box = $('#banner');
+  box.innerHTML = '';
+  const el = document.createElement('div');
+  el.className = 'bn';
+  el.innerHTML = `<span class="k">${esc(kicker)}</span><span class="t">${esc(title)}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}`;
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 520); }, ms);
+}
 
 /* ------------------------------------------------------------ HUD */
 let citiesBuilt = false;
@@ -46,6 +64,12 @@ function setBar(el, frac) {
 
 export function updateHud(d) {
   if (!citiesBuilt) {
+    const ticks = [];
+    for (let k = 0; k <= 14; k++) {
+      const a = ((135 + (k / 14) * 270) * Math.PI) / 180, r1 = k % 2 ? 56 : 52, r2 = 60;
+      ticks.push(`<line x1="${85 + Math.cos(a) * r1}" y1="${85 + Math.sin(a) * r1}" x2="${85 + Math.cos(a) * r2}" y2="${85 + Math.sin(a) * r2}"/>`);
+    }
+    $('#sp-ticks').innerHTML = ticks.join('');
     $('#h-cities').innerHTML = CITIES.map((c, i) => `<span data-i="${i}" class="${i % 2 ? 'up' : ''}" style="left:${cityPos[i] * 100}%">${esc(c.name)}</span>`).join('');
     citiesBuilt = true;
   }
@@ -55,7 +79,12 @@ export function updateHud(d) {
   $('#h-pax').textContent = `${d.pax}/${SEATS} passagers`;
   $('#h-money').textContent = fmtMoney(d.money);
   $('#h-clock').textContent = fmtClock(d.hour);
-  $('#h-speed').textContent = Math.round(Math.abs(d.speed) * 3.6);
+  const kmh = Math.abs(d.speed) * 3.6;
+  $('#h-speed').textContent = Math.round(kmh);
+  const arc = $('#sp-arc');
+  arc.style.strokeDasharray = `${(Math.min(140, kmh) / 140) * 320.4} 427.3`;
+  arc.classList.toggle('hot', kmh > 100);
+  $('#h-gear').textContent = d.speed < -0.3 ? 'R' : kmh < 1 ? 'N' : String(1 + [25, 47, 68, 90].filter((g) => kmh > g).length);
   const prog = cityPos[d.stage] + (cityPos[d.stage + 1] - cityPos[d.stage]) * clamp(d.stageProgress, 0, 1);
   $('#h-fill').style.width = prog * 100 + '%';
   $('#h-dot').style.left = prog * 100 + '%';
@@ -72,27 +101,29 @@ export function updateHud(d) {
 export function renderTitle({ best, onStart, onGarage, vehicle }) {
   const el = $('#s-title');
   const strip = CITIES.map((c) => `<span>${esc(c.name)}</span>`).join('<i></i>');
+  const touch = document.body.classList.contains('touch');
   el.innerHTML = `
     <div class="title-wrap">
-      <div class="n1-badge"><div class="n">N1</div><div class="r"><b>Taxi-brousse</b><span>Lomé → Dapaong · ~${TOTAL_KM} km</span></div></div>
-      <h1>Traverse le Togo<br><em>avec ton taxi plein.</em></h1>
-      <p class="lead">Charge tes passagers à la gare, double les camions, garde un œil sur l’essence et monte la faille d’Alédjo sans perdre les sacs du toit. Six étapes, de la côte au Sahel.</p>
+      <div class="logo"><div class="n">N1</div><div class="w"><b>ROUTE</b><span>Taxi-brousse · Togo</span></div></div>
+      <h1>De Lomé à Dapaong,<br><em>${TOTAL_KM} km de vraie route.</em></h1>
+      <p class="lead">Charge tes passagers à la gare, double les camions surchargés, garde un œil sur l’essence et passe la faille d’Alédjo sans perdre les colis du toit. Le tracé suit la vraie N1, de la côte au Sahel.</p>
       <div class="route-strip">${strip}</div>
       <div class="title-actions">
-        <button class="btn" id="t-start">Ouvrir la gare de Lomé <span class="kbd">Entrée</span></button>
+        <button class="btn" id="t-start">Prendre la route <span class="kbd">Entrée</span></button>
         <button class="btn ghost" id="t-garage">Garage</button>
       </div>
-      <div class="title-meta">${best ? `<span>Record : <b>${fmtMoney(best.money)}</b> à ${esc(CITIES[best.reached].name)}</span>` : '<span>Pas encore de record. À toi de l’ouvrir.</span>'}<span>Véhicule : <b>${esc(vehicle)}</b></span><span>Gratuit · PC et mobile</span></div>
-      <div class="howto">
-        <h3>Comment on joue</h3>
+      <div class="title-meta">${best ? `<span>Record : <b>${fmtMoney(best.money)}</b> à ${esc(CITIES[best.reached].name)}</span>` : '<span>Pas encore de record.</span>'}<span>Véhicule : <b>${esc(vehicle)}</b></span><span>Gratuit · PC et mobile</span></div>
+      <details class="howto">
+        <summary>Comment on joue</summary>
         <ul>
-          <li><b>À la gare</b> : choisis tes passagers (7 places, 6 colis sur le toit), fais le plein et répare.</li>
-          <li><b>Sur la route</b> : ${document.body.classList.contains('touch') ? 'boutons Gaz, Frein, ◀ ▶ et Klaxon' : '<span class="kbd">↑</span> gaz, <span class="kbd">↓</span> frein et marche arrière, <span class="kbd">←</span> <span class="kbd">→</span> direction, <span class="kbd">Espace</span> klaxon'}.</li>
-          <li><b>Klaxonne</b> derrière un camion : il se range à droite pour te laisser doubler. Regarde d’abord en face.</li>
-          <li><b>Contrôles routiers</b> : passe sous 20 km/h ou paie l’amende. <b>Nids-de-poule</b> : ralentis ou casse le taxi.</li>
-          <li><b>Essence</b> : arrête-toi sur le bas-côté droit devant les vendeuses au bord de la route.</li>
+          <li><b>À la gare</b> : choisis tes passagers selon la place et les colis, fais le plein, répare.</li>
+          <li><b>Commandes</b> : ${touch ? 'boutons Gaz, Frein, flèches et Klaxon' : '<span class="kbd">↑</span> gaz, <span class="kbd">↓</span> frein et marche arrière, <span class="kbd">←</span> <span class="kbd">→</span> direction, <span class="kbd">Espace</span> klaxon, <span class="kbd">C</span> caméra, <span class="kbd">R</span> radio'}.</li>
+          <li><b>Klaxonne</b> derrière un camion : il se range à droite. Regarde d’abord en face avant de doubler.</li>
+          <li><b>Contrôles</b> : sous 20 km/h ou amende. <b>Ralentisseurs</b> et <b>nids-de-poule</b> : ralentis.</li>
+          <li><b>Essence</b> : arrête-toi sur le bas-côté droit devant les vendeuses. À l’arrêt dans un village, les marchandes viennent aux vitres.</li>
         </ul>
-      </div>
+      </details>
+      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : clips officiels lus via YouTube depuis les chaînes des artistes.</div>
     </div>`;
   const tm = document.createElement('canvas');
   tm.className = 'title-map';
@@ -125,8 +156,8 @@ export function renderGare(ctx) {
     const cls = state === 'aboard' ? 'pax aboard' : `pax${state === 'on' ? ' on' : ''}${state === 'full' ? ' full' : ''}`;
     const tag = state === 'aboard' ? 'div' : 'button';
     return `<${tag} class="${cls}" data-id="${p.id}" ${tag === 'button' ? 'type="button"' : ''} aria-pressed="${state === 'on'}">
-      <div class="ic">${T.icon}</div>
-      <div><div class="nm">${esc(p.name)} <span style="font-weight:600;color:var(--ink-2)">→ ${esc(dest)}</span></div>
+      <div class="ic">${ICONS[p.trait] || ''}</div>
+      <div><div class="nm">${esc(p.name)} <span>→ ${esc(dest)}</span></div>
       <div class="tr">${esc(traitLabel(p))}${bags} · ${esc(T.desc)}</div></div>
       <div class="fare">${state === 'aboard' ? `${Math.round(p.sat)}%` : fmtMoney(p.fare)}<small>${state === 'aboard' ? 'satisfaction' : `${p.km} km`}</small></div>
     </${tag}>`;
@@ -183,7 +214,7 @@ export function renderGare(ctx) {
     </div>`;
 
   const gm = el.querySelector('#gare-map');
-  if (gm && window.innerWidth > 900) drawFullMap(gm, { w: 228, h: 520, stage: run.stage, progress: 0 });
+  if (gm && window.innerWidth > 900) drawFullMap(gm, { w: 228, h: 520, stage: run.stage, progress: 0, dark: true });
   for (const b of el.querySelectorAll('button.pax')) b.onclick = () => onToggle(+b.dataset.id);
   el.querySelector('#f10').onclick = () => onFuel(fuel10, price(fuel10));
   el.querySelector('#ffull').onclick = () => onFuel(fullL, price(fullL));
@@ -257,7 +288,7 @@ export function renderPause({ onResume, onRestart, onQuit, stage, progress }) {
       </div>
       <canvas id="pause-map" style="margin-top:14px;display:block;border-radius:8px"></canvas>
     </div></div>`;
-  drawFullMap(el.querySelector('#pause-map'), { w: Math.min(478, window.innerWidth - 74), h: 260, stage, progress, showNeighbors: false });
+  drawFullMap(el.querySelector('#pause-map'), { w: Math.min(478, window.innerWidth - 74), h: 260, stage, progress, showNeighbors: false, dark: true });
   el.querySelector('#p-resume').onclick = onResume;
   el.querySelector('#p-restart').onclick = onRestart;
   el.querySelector('#p-quit').onclick = onQuit;

@@ -158,7 +158,7 @@ function newRun() {
   weathers[0] = 'clear';
   return {
     seed, rng, weathers, stage: 0, reached: 0, vehicle: VEHICLES[garageCfg.model], cfg: { ...garageCfg },
-    money: 12000, fuel: Math.round(VEHICLES[garageCfg.model].tank * 0.52), hp: 100, passengers: [], bags: 0, hour: 6.7,
+    money: 12000, fuel: Math.round(VEHICLES[garageCfg.model].tank * 0.52), hp: 100, passengers: [], bags: 0, hour: 7.1,
     stats: { carried: 0, tips: 0, fines: 0, crashes: 0 },
     stageTime: 0, stageLog: [],
   };
@@ -375,7 +375,10 @@ function updateDrive(dt) {
   // messages du parcours
   while (world.noteIdx < r.notes.length && r.notes[world.noteIdx].s < player.s) {
     const n = r.notes[world.noteIdx++];
-    if (player.s - n.s < 60) UI.toast(n.text, n.kind === 'warn' ? 'warn' : n.kind === 'landmark' ? 'big' : 'info', n.kind === 'landmark' ? 4500 : 3200);
+    if (player.s - n.s >= 60) continue;
+    if (n.kind === 'landmark') UI.banner('Site remarquable', r.stage.landmark, 'Forte montée · ligne continue · interdit de doubler', 4200);
+    else if (n.kind === 'town') { const nm = n.text.replace('Bienvenue à ', ''); if (n.text.startsWith('Bienvenue')) UI.banner('Bienvenue à', nm, '', 2400); else UI.toast(n.text, 'info', 3200); }
+    else UI.toast(n.text, n.kind === 'warn' ? 'warn' : 'info', 3200);
   }
 
   // vendeuses ambulantes
@@ -494,7 +497,7 @@ function startDrive() {
   hud(true);
   UI.clearToasts();
   const from = CITIES[run.stage].name, to = CITIES[run.stage + 1].name;
-  UI.toast(`${from} → ${to}`, 'big', 2600);
+  UI.banner(`Étape ${run.stage + 1} sur ${STAGES.length}`, `${from} → ${to}`, `${STAGES[run.stage].km} km de N1 · ${WEATHER_LABEL[world.weather]}`, 3000);
   if (run.stage === 0) {
     setTimeout(() => state === 'drive' && UI.toast(isTouch ? 'Astuce : le bouton Klaxon fait ranger les camions à droite.' : 'Astuce : <b>Espace</b> pour klaxonner, le camion devant toi se range à droite.', 'info', 4200), 3500);
   }
@@ -720,14 +723,20 @@ function updateCamera(dt) {
     camLook.lerp(lookT, 1 - Math.exp(-dt * 6));
     camera.lookAt(camLook);
   } else {
-    orbitA += dt * 0.1;
-    const R = state === 'title' ? 9.5 : state === 'garage' ? 6.8 : 8.5;
-    desired.set(pos.x + Math.sin(orbitA) * R, pos.y + (state === 'garage' ? 2.2 : 3.2), pos.z + Math.cos(orbitA) * R);
-    camera.position.lerp(desired, 1 - Math.exp(-dt * 3));
+    // plan cinématique : la caméra balaie l'avant du taxi, la route file derrière
+    orbitA += dt;
+    const a = Math.sin(orbitA * 0.11) * 0.75 + 0.35;
+    const R = state === 'title' ? 9 : 8;
+    const hr = world.road.headingAt(player.s);
+    const lx = Math.sin(a) * R, lz = Math.cos(a) * R;
+    const ch = Math.cos(hr), sh = Math.sin(hr);
+    desired.set(pos.x + lx * ch + lz * sh, pos.y + 2.4, pos.z - lx * sh + lz * ch);
+    camera.position.lerp(desired, 1 - Math.exp(-dt * 2.5));
     lookT.copy(pos);
-    lookT.y += 1.2;
+    lookT.y += 1.3;
     camLook.lerp(lookT, 1 - Math.exp(-dt * 4));
     camera.lookAt(camLook);
+    if (Math.abs(camera.fov - 52) > 0.05) { camera.fov += (52 - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
   }
 }
 
