@@ -18,7 +18,7 @@ export async function loadPlaylist() {
     if (!r.ok) return STATIONS;
     const data = await r.json();
     for (const st of data.stations || []) {
-      const tracks = (st.tracks || []).filter((t) => t && t.src).map((t) => ({ ...t, src: /^https?:/.test(t.src) ? t.src : `${base}radio/${t.src}` }));
+      const tracks = (st.tracks || []).filter((t) => t && t.src).map((t) => ({ ...t, src: /^https?:/.test(t.src) ? t.src : `${base}radio/${t.src.split('/').map(encodeURIComponent).join('/')}` }));
       if (!tracks.length) continue;
       STATIONS.push({ id: st.id, name: st.name || st.id, freq: st.freq || '', kind: 'file', desc: st.desc || '', tracks });
     }

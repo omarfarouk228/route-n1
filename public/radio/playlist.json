@@ -5,7 +5,23 @@
       "name": "Lomé Hits",
       "freq": "94.5",
       "desc": "Les tubes de Lomé.",
-      "tracks": []
+      "tracks": [
+        {
+          "src": "lome/Toofan - Africa Hoyee.mp3",
+          "artist": "Toofan",
+          "title": "Africa Hoyee"
+        },
+        {
+          "src": "lome/Toofan - Aperitif.m4a",
+          "artist": "Toofan",
+          "title": "Apéritif"
+        },
+        {
+          "src": "lome/Toofan - Ce Magik.mp3",
+          "artist": "Toofan",
+          "title": "Ce Magik"
+        }
+      ]
     },
     {
       "id": "rap",
