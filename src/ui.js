@@ -19,9 +19,18 @@ export function show(id) {
   for (const el of document.querySelectorAll('.screen:not(.modal)')) el.classList.toggle('on', el.id === id);
 }
 export function modal(id, on) { $('#' + id).classList.toggle('on', on); }
+let hudOn = false, radioView = 'open';
+function applyRadioView() {
+  const r = $('#radio'), pill = $('#radio-pill');
+  r.hidden = !hudOn || radioView === 'hidden';
+  r.classList.toggle('min', radioView === 'min');
+  pill.hidden = !hudOn || radioView !== 'hidden';
+  requestAnimationFrame(fitTop);
+}
 export function hud(on) {
   $('#hud').hidden = !on;
-  $('#radio').hidden = !on;
+  hudOn = on;
+  applyRadioView();
   $('#touch').hidden = !(on && document.body.classList.contains('touch'));
   if (on) requestAnimationFrame(fitTop);
 }
@@ -30,7 +39,7 @@ export function loaded() { $('#loading').classList.add('done'); }
 /* ------------------------------------------------------------ toasts */
 const toastsEl = () => $('#toasts');
 // téléphone en portrait : messages et alertes se placent juste sous la radio et les boutons du haut,
-// quelle que soit la hauteur de la radio (repliée, dépliée, lecteur Audio ou Clip)
+// quelle que soit la hauteur de la radio (ouverte, réduite ou masquée)
 export function fitTop() {
   const hud = $('#hud'), btns = $('.hud-btns'), radio = $('#radio');
   if (!hud) return;
@@ -39,6 +48,7 @@ export function fitTop() {
     hud.style.removeProperty('--top-free');
     btns.style.removeProperty('top');
     radio.style.removeProperty('top');
+    $('#radio-pill')?.style.removeProperty('top');
     return;
   }
   // empilement vertical : cadre de l'étape, boutons, radio, puis messages
@@ -46,6 +56,8 @@ export function fitTop() {
   let y = top.getBoundingClientRect().bottom + 8;
   btns.style.top = Math.round(y) + 'px';
   y += btns.getBoundingClientRect().height + 8;
+  const pill = $('#radio-pill');
+  if (pill && !pill.hidden) { pill.style.top = Math.round(y) + 'px'; y += pill.getBoundingClientRect().height + 8; }
   if (!radio.hidden) {
     radio.style.top = Math.round(y) + 'px';
     y += radio.getBoundingClientRect().height + 8;
@@ -158,14 +170,14 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
         <summary>Comment on joue</summary>
         <ul>
           <li><b>À la gare</b> : choisis tes passagers selon la place et les colis, fais le plein, répare.</li>
-          <li><b>Commandes</b> : ${touch ? 'boutons Gaz, Frein, flèches et Klaxon' : '<span class="kbd">↑</span> gaz, <span class="kbd">↓</span> frein et marche arrière, <span class="kbd">←</span> <span class="kbd">→</span> direction, <span class="kbd">Espace</span> klaxon, <span class="kbd">C</span> caméra, <span class="kbd">R</span> radio'}.</li>
+          <li><b>Commandes</b> : ${touch ? 'boutons Gaz, Frein, flèches et Klaxon' : '<span class="kbd">↑</span> gaz, <span class="kbd">↓</span> frein et marche arrière, <span class="kbd">←</span> <span class="kbd">→</span> direction, <span class="kbd">Espace</span> klaxon, <span class="kbd">C</span> caméra, <span class="kbd">R</span> radio, <span class="kbd">V</span> afficher, réduire ou masquer la radio'}.</li>
           <li><b>Manette</b> (Xbox, PlayStation…) : RT accélère, LT freine, stick gauche pour tourner, X klaxonne, Y caméra, LB / RB stations, Start pause, A valide.</li>
           <li><b>Klaxonne</b> derrière un camion : il se range à droite. Regarde d’abord en face avant de doubler.</li>
           <li><b>Contrôles</b> : sous 20 km/h ou amende. <b>Ralentisseurs</b> et <b>nids-de-poule</b> : ralentis.</li>
           <li><b>Essence</b> : arrête-toi sur le bas-côté droit devant les vendeuses. À l’arrêt dans un village, les marchandes viennent aux vitres.</li>
         </ul>
       </details>
-      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : titres publiés par les artistes sur Audiomack et clips officiels sur YouTube, lus via leurs lecteurs intégrés.</div>
+      <div class="credits">Tracé et carte : ${esc('© contributeurs OpenStreetMap (ODbL)')}. Radio : N1 Groove est une musique originale générée par le jeu.</div>
     </div>`;
   const tm = document.createElement('canvas');
   tm.className = 'title-map';
@@ -407,53 +419,38 @@ export function renderGarage({ cfg, onChange, onSave, onCancel }) {
 }
 
 /* ------------------------------------------------------------ autoradio */
+const mmss = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
 export function radioUI() {
-  let src = null;
+  let lastPct = -1, lastCur = '';
   return {
-    // lecteur audio Audiomack (sans vidéo) ; replié, seule sa barre de lecture reste visible
-    frame(url) {
-      const host = $('#r-am');
-      if (url === src) return;
-      src = url;
-      host.textContent = '';
-      host.hidden = !url;
-      if (!url) return;
-      const f = document.createElement('iframe');
-      f.src = url;
-      f.title = 'Lecteur Audiomack';
-      f.allow = 'autoplay; encrypted-media';
-      f.loading = 'eager';
-      host.appendChild(f);
-      requestAnimationFrame(fitTop);
+    view(v) { radioView = v || 'open'; applyRadioView(); },
+    // appelé à chaque image : barre de progression et temps écoulé
+    tick(pr) {
+      const pct = pr ? pr.t / pr.d : 0;
+      if (Math.abs(pct - lastPct) > 0.001) { lastPct = pct; $('#r-prog-bar').style.width = `${(pct * 100).toFixed(2)}%`; }
+      const cur = pr ? mmss(pr.t) : '';
+      if (cur !== lastCur) { lastCur = cur; $('#r-cur').textContent = cur; $('#r-dur').textContent = pr ? mmss(pr.d) : ''; }
     },
-    get iframe() { return $('#r-am iframe'); },
-    host: 'r-yt',
-    showVideo(on) { $('#r-video').hidden = !on; requestAnimationFrame(fitTop); },
-    collapsed() { return $('#radio').classList.contains('min'); },
-    render({ station, track, status, playing, muted, mode }) {
-      const synth = !station || station.kind === 'synth';
-      $('#r-freq').textContent = station ? station.freq : 'OFF';
+    render({ station, track, status, playing, muted, volume, file }) {
+      $('#r-freq').textContent = station ? station.freq || 'FM' : 'OFF';
+      $('#pill-freq').textContent = station ? station.freq || 'FM' : 'OFF';
       $('#r-station').textContent = station ? station.name : 'Radio éteinte';
-      $('#r-track').textContent = !station ? 'Touche R ou ⏻ pour allumer'
-        : status === 'loading' ? 'Réglage…'
-        : status === 'offline' ? 'YouTube injoignable : essaie le mode Audio'
-        : `${track.artist} · ${track.title}`;
+      $('#r-track').textContent = !station ? 'Touche R ou ⏻ pour allumer' : track ? `${track.artist} · ${track.title}` : '';
       $('#r-power').classList.toggle('on', !!station);
-      $('#r-mode').hidden = synth;
-      $('#r-m-audio').classList.toggle('on', mode !== 'clip');
-      $('#r-m-clip').classList.toggle('on', mode === 'clip');
-      $('#radio').classList.toggle('am', !synth && mode !== 'clip' && !muted);
+      $('#radio').classList.toggle('playing', !!playing);
+      $('#radio').classList.toggle('file', !!file);
+      $('#radio-pill').classList.toggle('playing', !!playing);
+      const vol = $('#r-vol'); if (document.activeElement !== vol) vol.value = volume;
       $('#r-note').textContent = !station ? ''
-        : synth ? 'Musique originale du jeu, générée en direct.'
-        : muted ? 'Son coupé (touche M pour le remettre).'
-        : mode === 'clip' ? 'Clips officiels via YouTube : le clip se met en pause quand la radio est repliée.'
-        : playing ? 'Audio seul via Audiomack · le titre suivant se charge à la fin du morceau.'
-        : 'Appuie sur ▶ dans le lecteur pour écouter (audio seul, via Audiomack).';
+        : muted ? 'Son coupé (touche M).'
+        : status === 'blocked' ? 'Appuie sur ▶ pour lancer la musique.'
+        : status === 'broken' ? 'Aucun fichier lisible sur cette station.'
+        : file ? '' : 'Musique originale, générée en direct.';
       requestAnimationFrame(fitTop);
     },
   };
 }
-export function radioVisible(on) { $('#radio').hidden = !on; fitTop(); }
+export function radioVisible(on) { hudOn = on; applyRadioView(); }
 
 let miniT = 0;
 export function updateMiniMap(dt, stage, progress) {

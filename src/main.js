@@ -12,7 +12,7 @@ import { Sound } from './audio.js';
 import { Sky, Rain, Clouds, Mountains, skyState, makeSkyState } from './sky.js';
 import { BIOMES } from './data.js';
 import { makeComposer } from './post.js';
-import { Radio } from './radio.js';
+import { Radio, loadPlaylist } from './radio.js';
 import { Vendors } from './vendors.js';
 import { Walkers } from './walkers.js';
 import { CHAR_U, CHAR_MAT, armGeo, noteGeo, itemGeo, VENDOR_GOODS } from './characters.js';
@@ -162,29 +162,27 @@ const sound = new Sound();
 const player = new Player();
 const radio = new Radio(sound, UI.radioUI());
 radio.muted = sound.muted;
+const playlistReady = loadPlaylist();
+// affichage par défaut : réduit sur mobile, ouvert sur ordinateur (puis le choix du joueur est retenu)
+radio.setView(radio.viewMode || (isTouch ? 'min' : 'open'));
 radio.render();
-document.getElementById('r-power').onclick = () => radio.power();
-document.getElementById('r-next').onclick = () => radio.nextStation(1);
-document.getElementById('r-prev').onclick = () => radio.nextStation(-1);
-document.getElementById('r-skip').onclick = () => radio.nextTrack();
-// radio repliable (repliée par défaut sur mobile) : repliée, il ne reste que la barre de lecture et la musique continue
-const radioEl = document.getElementById('radio');
-if (isTouch) radioEl.classList.add('min');
-function toggleRadioPanel() { const min = radioEl.classList.toggle('min'); radio.clipVisible(!min); UI.fitTop(); }
-document.getElementById('r-m-audio').onclick = () => radio.setMode('audio');
-document.getElementById('r-m-clip').onclick = () => radio.setMode('clip');
-// un clic dans le lecteur Audiomack lui donne le focus clavier : on le détecte (lecture lancée) et on rend
-// le clavier au jeu pour que les flèches continuent de conduire le taxi
-window.addEventListener('blur', () => setTimeout(() => {
-  const f = document.activeElement;
-  if (f && f.tagName === 'IFRAME' && f.closest('#r-am')) {
-    radio.playerClicked();
-    f.blur();
-    window.focus();
-  }
-}, 0));
-document.getElementById('r-head').onclick = toggleRadioPanel;
-document.getElementById('r-head').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleRadioPanel(); } };
+const $id = (k) => document.getElementById(k);
+$id('r-power').onclick = () => radio.power();
+$id('r-next').onclick = () => radio.nextStation(1);
+$id('r-prev').onclick = () => radio.nextStation(-1);
+$id('r-skip').onclick = () => radio.nextTrack(1);
+$id('r-back').onclick = () => radio.nextTrack(-1);
+$id('r-play').onclick = () => { sound.init(); radio.toggle(); };
+$id('r-mini-play').onclick = (e) => { e.stopPropagation(); sound.init(); radio.toggle(); };
+$id('r-hide').onclick = () => radio.setView('hidden');
+$id('radio-pill').onclick = () => radio.setView('open');
+$id('r-vol').oninput = (e) => radio.setVolume(+e.target.value);
+$id('r-prog').onpointerdown = (e) => { const r = e.currentTarget.getBoundingClientRect(); radio.seek((e.clientX - r.left) / r.width); };
+// les réglages de la radio ne doivent pas garder le focus clavier (les flèches conduisent le taxi)
+for (const el of document.querySelectorAll('#radio button, #radio input, #radio-pill')) el.addEventListener('pointerup', () => setTimeout(() => el.blur(), 0));
+function toggleRadioPanel() { radio.setView(radio.viewMode === 'min' ? 'open' : 'min'); }
+$id('r-head').onclick = toggleRadioPanel;
+$id('r-head').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleRadioPanel(); } };
 
 let run = null;
 let world = null;
@@ -538,11 +536,9 @@ let radioStarted = false;
 function hud(on) {
   UI.hud(on);
   if (!on) UI.alert(null);
-  radio.clipVisible(on && !radioEl.classList.contains('min'));
   if (on && !radioStarted) {
     radioStarted = true;
-    if (radio.saved && radio.saved.station >= 0) radio.restore();
-    else if (!radio.saved) radio.tune(0);
+    playlistReady.then(() => { if (radio.saved && 'station' in radio.saved) radio.restore(); else radio.tune(0); });
   }
 }
 
@@ -773,7 +769,7 @@ input.on('KeyM', toggleSound);
 input.on('KeyR', () => { if (state === 'drive') radio.power(); });
 input.on('KeyN', () => { if (state === 'drive') radio.nextTrack(); });
 input.on('KeyT', () => { if (state === 'drive') radio.nextStation(1); });
-input.on('KeyV', () => { if (state === 'drive') radio.toggleMode(); });
+input.on('KeyV', () => { if (state === 'drive') radio.cycleView(); });
 document.getElementById('b-pause').onclick = () => setPause(true);
 document.getElementById('b-cam').onclick = () => { camMode = (camMode + 1) % 3; };
 document.getElementById('b-sound').onclick = toggleSound;
@@ -783,13 +779,9 @@ function toggleSound() {
   document.getElementById('b-sound').classList.toggle('off', sound.muted);
 }
 document.getElementById('b-sound').classList.toggle('off', sound.muted);
-document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
-// pause automatique quand on quitte la fenêtre, sauf pour un clic dans le lecteur de la radio
-addEventListener('blur', () => setTimeout(() => {
-  const f = document.activeElement;
-  if (f && f.tagName === 'IFRAME' && f.closest('#r-am')) return;
-  if (state === 'drive' && !paused && !document.hasFocus()) setPause(true);
-}, 0));
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); radio.background(document.hidden); });
+// pause automatique quand on quitte la fenêtre
+addEventListener('blur', () => setTimeout(() => { if (state === 'drive' && !paused && !document.hasFocus()) setPause(true); }, 0));
 
 /* ------------------------------------------------------------ caméra et visuels */
 const fw = new THREE.Vector3();
@@ -934,7 +926,7 @@ function frame(now) {
   clock += dt;
   CHAR_U.uTime.value = clock;
   input.poll();
-  radio.update(dt);
+  radio.ui.tick(radio.progress);
   if (!world) return;
   if (state === 'drive' && !paused) {
     updateDrive(dt);

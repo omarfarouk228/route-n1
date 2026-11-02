@@ -1,0 +1,25 @@
+{
+  "stations": [
+    {
+      "id": "lome",
+      "name": "Lomé Hits",
+      "freq": "94.5",
+      "desc": "Les tubes de Lomé.",
+      "tracks": []
+    },
+    {
+      "id": "rap",
+      "name": "Rap 228",
+      "freq": "101.3",
+      "desc": "Rap togolais.",
+      "tracks": []
+    },
+    {
+      "id": "legendes",
+      "name": "Légendes",
+      "freq": "106.7",
+      "desc": "Les voix qui ont fait le Togo.",
+      "tracks": []
+    }
+  ]
+}

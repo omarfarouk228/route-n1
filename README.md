@@ -13,7 +13,7 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 - **Direction** : `←` `→` / `Q` `D` / `A` `D`
 - **Klaxon** : `Espace` / `H` (le camion ou le zém devant toi se range à droite ; les chèvres pressent le pas)
 - **Caméra** : `C` · **Son** : `M` · **Pause** : `P` / `Échap`
-- **Radio** : `R` allumer/éteindre · `T` station suivante · `N` titre suivant · `V` audio seul / clip
+- **Radio** : `R` allumer/éteindre · `T` station suivante · `N` titre suivant · `V` ouvrir, réduire ou masquer la radio
 - Sur mobile : boutons tactiles ◀ ▶, Klaxon, Frein, Gaz (portrait ou paysage).
 - **Manette** (Xbox, PlayStation, USB ou Bluetooth) : RT / R2 accélère (gâchette progressive), LT / L2 freine, stick gauche ou croix pour tourner, X / Carré klaxonne, Y / Triangle caméra, LB / RB station précédente / suivante, Select allume la radio, R3 titre suivant, Start pause, A / Croix valide les écrans.
 
@@ -34,7 +34,7 @@ Ce n'est pas une course : c'est un **voyage à gérer**. La route suit le **vrai
 
 - **Carte réelle** : tracé de la N1 et contour du Togo issus d'OpenStreetMap ; mini-carte orientée pendant la conduite, carte complète à la gare, en pause et sur l'écran titre. La forme des virages suit la route réelle (compressée).
 - **Garage** : break 7 places, minibus 12 places ou berline 4 places, chacun avec sa physique (masse, puissance, adhérence, consommation). Peinture (palette ou couleur libre), bandes, jantes, galerie, slogan peint sur la lunette arrière et plaque personnalisée.
-- **Autoradio** : *N1 Groove*, musique originale générée en direct (cloche gankogui, afrobeat, guitare highlife) qui fonctionne hors ligne, et trois stations d'artistes togolais : *Lomé Hits* (Toofan, Santrinos Raphaël, Almok, Axel Merryl), *Rap 228* (Mic Flammez, Elow'n) et *Légendes* (Bella Bellow, King Mensah, Afia Mala, Vaudou Game, Amen Viana). Chaque station a deux modes (bouton ou touche `V`). En mode **Audio**, l'écoute passe par le lecteur Audiomack, sans vidéo, et continue radio repliée : appuie sur ▶, le titre suivant se charge à la fin du morceau. En mode **Clip**, ce sont les clips officiels via le lecteur YouTube, mis en pause quand la radio est repliée. Aucun fichier audio d'artiste n'est hébergé dans ce dépôt.
+- **Autoradio** : lecteur maison (lecture, pause, titre précédent ou suivant, barre de progression, volume) avec trois affichages : ouvert, réduit à une barre, ou masqué derrière une pastille, sans couper la musique. *N1 Groove* est une musique originale générée en direct (cloche gankogui, afrobeat, guitare highlife) qui fonctionne hors ligne. Les autres stations lisent des fichiers audio déposés dans `public/radio/<station>/` (voir plus bas).
 - **Paysages par région** : cocotiers et palmiers à huile au sud, plantations de teck, bananiers, fromagers, nimiers, rôniers et baobabs au nord ; champs de maïs, d'igname, de manioc et de mil ; brûlis de saison sèche ; terrasses kabyè autour de Kara ; ponts sur le Haho et l'Oti avec forêt galerie.
 - **Villes et villages** : immeubles R+1 en périphérie de Lomé, maisons en ciment et tôle, concessions de cases rondes avec greniers au nord, églises, mosquées (Sokodé), écoles avec le drapeau, kiosques aux enseignes peintes, stations-service, antennes, ligne électrique continue.
 - **Personnages** : silhouettes modelées (visage, mains, pieds), pagnes et foulards en **motifs wax** dessinés dans le shader, porteuses de bassines, femmes avec bébé au dos, hommes en grand boubou, écoliers en kaki, policiers en béret. Animation de marche (jambes, genoux, bras), passants qui circulent sur l'accotement et s'écartent du taxi, vendeuses qui accourent aux vitres quand tu t'arrêtes (le confort des passagers remonte).
@@ -74,7 +74,8 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 | `src/geo.js` · `src/geo/*.json` | Tracé réel de la N1 et contour du Togo (OpenStreetMap), projection, positions des villes |
 | `src/map.js` | Carte complète et mini-carte |
 | `src/garage.js` | Véhicules et personnalisation |
-| `src/radio.js` | Autoradio : station générée en direct, stations en mode Audio (Audiomack) ou Clip (YouTube) |
+| `src/radio.js` | Autoradio : station générée en direct et lecteur de fichiers audio |
+| `scripts/radio-playlist.mjs` | Génère `public/radio/playlist.json` à partir des fichiers déposés (`npm run radio`) |
 | `src/vendors.js` | Vendeuses ambulantes |
 | `src/characters.js` · `src/walkers.js` | Personnages et animaux (squelette animé dans le shader, motifs wax), passants |
 | `src/post.js` · `src/terrainmat.js` | Post-traitement, matériaux du sol et de l'eau |
@@ -98,3 +99,14 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 ## Licence
 
 Code © Omar Farouk. Tous droits réservés sauf mention contraire.
+
+## Ajouter de la musique à la radio
+
+1. Dépose les fichiers dans un dossier de station : `public/radio/lome/`, `public/radio/rap/`, `public/radio/legendes/` (ou crée un nouveau dossier pour une nouvelle station).
+2. Nomme-les `Artiste - Titre.mp3` : le lecteur affichera l'artiste et le titre.
+3. Lance `npm run radio` : la playlist `public/radio/playlist.json` est régénérée. Tu peux y corriger à la main un nom de station, une fréquence ou un titre ; ces corrections sont conservées.
+4. Commit et push : la radio en ligne se met à jour.
+
+Une station sans fichier n'apparaît pas dans le jeu. Formats lus : mp3, m4a, aac, ogg, opus, wav, webm, flac. Pour le poids du dépôt, préfère du mp3 ou de l'aac autour de 128 kbit/s (environ 3 Mo par titre).
+
+Le dépôt est public : n'y mets que des titres dont tu as les droits de diffusion (tes propres morceaux, accord écrit de l'artiste ou du label, musique libre de droits).
