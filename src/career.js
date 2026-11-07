@@ -35,7 +35,7 @@ export function vehicleSpec(model, up = {}) {
   V.shock = up.amortisseurs ? 0.65 : 1;
   V.heat = up.radiateur ? 0.5 : 1;
   V.flat = up.pneus ? 0.3 : 1;
-  V.wheelTime = up.pneus ? 3.5 : 7;
+  V.wheelTime = up.pneus ? 9 : 16; // durée de la scène de changement de roue (s)
   return V;
 }
 

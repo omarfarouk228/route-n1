@@ -4,6 +4,7 @@ import { settle, haggle, RUSH_SPEED } from './rules.js';
 import { START_CASH, loadCareer, saveCareer, vehicleSpec, UPGRADES, saveRun, loadRun, clearRun } from './career.js';
 import { Roadside } from './roadside.js';
 import { StreetLife } from './streetlife.js';
+import { Scenes } from './scenes.js';
 import { Road, SHOULDER, HALF_ROAD } from './road.js';
 import { buildScenery, disposeGroup, updateLod } from './scenery.js';
 import { Traffic } from './traffic.js';
@@ -114,10 +115,11 @@ function buildTaxi(cfg) {
   hand.visible = false;
   taxi.body.add(hand);
   taxi.hand = { group: hand, note, items, ext: 0, side: 1, y: taxi.rackY * 0.73, half: spec.wid / 2 };
+  scenes.attach(taxi, spec);
 }
 
 function updateWindowHand(dt) {
-  const H = taxi.hand, st = world.vendors.hand;
+  const H = taxi.hand, st = world.vendors.hand || world.tollHand;
   const target = st ? st.extend : 0;
   H.ext += (target - H.ext) * Math.min(1, dt * 12);
   if (st) H.side = st.side;
@@ -459,7 +461,7 @@ function updateDrive(dt) {
     const grade = Math.max(0, r.sample(player.s).grade);
     const loadF = (run.passengers.length * 70 + run.bags * 28) / (SEATS * 70 + ROOF * 28);
     const gain = player.throttle * grade * 0.62 * (0.5 + loadF) * V.heat;
-    const cool = world.hot ? (speed < 0.5 ? 0.11 : 0.03) : 0.035 + (speed < 0.5 ? 0.05 : 0);
+    const cool = world.hot ? (speed < 0.5 ? (world.hotT > 3.5 ? 0.05 : 0.02) : 0.012) : 0.035 + (speed < 0.5 ? 0.05 : 0); // à l'arrêt, l'eau versée par le chauffeur refroidit le moteur
     world.heat = clamp(world.heat + (gain - cool) * dt, 0, 1);
     if (!world.hot && world.heat >= 1) {
       world.hot = true;
@@ -520,7 +522,7 @@ function updateDrive(dt) {
       }
       if (d < 14 && d > 0 && speed < 0.6) {
         cp.wait += dt;
-        if (cp.wait > 2.6) {
+        if (cp.wait > CP_WAIT) {
           cp.cleared = true; cp.done = true;
           UI.toast('Gendarme : « Papiers du véhicule… C’est bon, bonne route chauffeur. »', 'good', 3200);
           sound.ok();
@@ -567,7 +569,7 @@ function updateDrive(dt) {
       if (t.hit > 0) t.hit -= dt;
       if (d < 16 && d > 0 && speed < 0.6 && player.x > -0.5) {
         t.wait += dt;
-        if (t.wait > 1.4) {
+        if (t.wait > 2.6) {
           t.paid = true;
           run.money -= PRICES.toll;
           log(`Péage ${deName(t.name)}`, -PRICES.toll);
@@ -684,6 +686,34 @@ function dropPassenger(p, missed) {
   if (res.total > 0) sound.coin();
 }
 
+// durées des scènes jouées à l'arrêt (s)
+const CP_WAIT = 4.6, SICK_T = 6, PAUSE_T = 8;
+const scenes = new Scenes();
+let sceneCam = null;
+function updateScenes(dt) {
+  world.tollHand = null;
+  if (state !== 'drive' || paused) { scenes.hideAll(); scenes.update({ dt, time: clock, flatOn: !!world.flat }); sceneCam = null; return; }
+  const r = world.road, speed = Math.abs(player.v);
+  const parked = speed < 0.45 && player.x > 2.4;
+  world.hotT = world.hot && speed < 0.5 ? (world.hotT || 0) + dt : 0;
+  let papers = null;
+  for (const c of world.checkpoints) if (c.cp.papers && !c.cp.cleared && c.cp.wait > 0) papers = Math.min(1, c.cp.wait / CP_WAIT);
+  // péage : le chauffeur tend le billet par sa vitre
+  for (const t of r.tolls) if (!t.paid && t.wait > 0) {
+    const w = t.wait, env = w < 0.3 ? 0 : w < 0.8 ? (w - 0.3) / 0.5 : w < 2.1 ? 1 : Math.max(0, 1 - (w - 2.1) / 0.5);
+    world.tollHand = { side: -1, extend: env, holding: 'note', kind: null, z: 0.7 };
+  }
+  const R = world.req;
+  sceneCam = scenes.update({
+    dt, time: clock, nPax: run.passengers.length, parked, stopped: speed < 0.5,
+    flatOn: !!world.flat, flat: world.flat && world.flat.fix > 0 && parked ? Math.min(1, world.flat.fix / run.vehicle.wheelTime) : null,
+    hot: world.hot, heat: world.heat > 0.85, hotT: world.hotT,
+    papers,
+    sick: R && R.type === 'sick' && R.hold > 0 ? Math.min(1, R.hold / SICK_T) : null,
+    pause: R && R.type === 'pause' && R.hold > 0 ? Math.min(1, R.hold / PAUSE_T) : null,
+  });
+}
+
 const REQS = {
   sick: { text: 'Passager malade', sub: (p, t) => `${p.name} : « Arrête-toi, j’ai mal au cœur ! » · ${Math.ceil(t)} s` },
   pause: { text: 'Pause demandée', sub: (p, t) => `${p.name} : « Pause pipi au prochain village ! » · ${Math.ceil(t)} s` },
@@ -747,8 +777,8 @@ function updatePassengersOnRoad(dt, speed, cands) {
   R.t -= dt;
   const kmh = speed * 3.6;
   let ok = false, fail = false;
-  if (R.type === 'sick') { if (parked) R.hold += dt; ok = R.hold > 3; fail = R.t <= 0; }
-  else if (R.type === 'pause') { const inVillage = r.villages.some((v) => Math.abs(v.s - player.s) < (v.named ? 120 : 60)); if (parked && inVillage) R.hold += dt; ok = R.hold > 4; fail = R.t <= 0; }
+  if (R.type === 'sick') { if (parked) R.hold += dt; ok = R.hold > SICK_T; fail = R.t <= 0 && R.hold === 0; }
+  else if (R.type === 'pause') { const inVillage = r.villages.some((v) => Math.abs(v.s - player.s) < (v.named ? 120 : 60)); if (parked && (inVillage || R.hold > 0)) R.hold += dt; ok = R.hold > PAUSE_T; fail = R.t <= 0 && R.hold === 0; }
   else if (R.type === 'slow') { fail = kmh > 62; ok = R.t <= 0; }
   if (ok) {
     world.req = null;
@@ -1185,7 +1215,15 @@ function updateCamera(dt) {
   const pos = taxi.group.position;
   const h = taxi.group.rotation.y;
   fw.set(Math.sin(h), 0, Math.cos(h));
-  if (state === 'drive' || state === 'rescue') {
+  if (sceneCam && state === 'drive') {
+    // scène jouée à l'arrêt : la caméra se place pour la montrer
+    desired.set(...sceneCam.pos); taxi.group.localToWorld(desired);
+    camera.position.lerp(desired, 1 - Math.exp(-dt * 2.2));
+    lookT.set(...sceneCam.look); taxi.group.localToWorld(lookT);
+    camLook.lerp(lookT, 1 - Math.exp(-dt * 3));
+    camera.lookAt(camLook);
+    if (Math.abs(camera.fov - 50) > 0.05) { camera.fov += (50 - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
+  } else if (state === 'drive' || state === 'rescue') {
     const portrait = camera.aspect < 0.9;
     let back = portrait ? 10.5 : 8.2, up = portrait ? 4.2 : 3.3, ahead = 10, k = 5;
     if (camMode === 1) { back = 14; up = 6.2; ahead = 16; }
@@ -1308,6 +1346,7 @@ function frame(now) {
     world.traffic.update(dt, player, false, false);
   }
   placeTaxi();
+  updateScenes(dt);
   updateLightsVisual();
   if (!freeCam) updateCamera(dt);
   updateLod(world.lod, camera.position, isTouch ? 160 : 230, Math.max(260, scene.fog.far + 120));

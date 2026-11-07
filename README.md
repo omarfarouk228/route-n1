@@ -40,6 +40,15 @@ Ce n'est pas une course : c'est un **voyage à gérer**, à l'aller puis, si tu 
 
 ## Nouveautés
 
+### v0.9 : départ d'Agbalépédo et scènes à l'écran
+- Le voyage part de la vraie gare routière d'Agbalépédo : rue de la gare (station Total, marché), feu, virage à gauche au carrefour GTA, puis le boulevard. Trajet total : 613 km.
+- Les imprévus se jouent à l'écran, avec une caméra qui se place pour les montrer :
+  - **crevaison** : la roue avant droite s'aplatit, les passagers descendent sur le bas-côté, le chauffeur prend la roue de secours sur la galerie, pose le cric, retire la roue crevée et monte la neuve ;
+  - **surchauffe** : vapeur au-dessus du capot, le chauffeur descend avec un bidon d'eau ;
+  - **contrôle des papiers** : le gendarme vient à la vitre du conducteur et prend les papiers ;
+  - **péage** : le bras du chauffeur tend le billet par sa vitre ;
+  - **passager malade** et **pause au village** : les passagers descendent vraiment du taxi.
+
 ### v0.8 : les vraies traversées de villes
 Chaque ville suit un plan relevé sur OpenStreetMap (novembre 2026) et dans la presse togolaise (`src/cities.js`) : repères dans l'ordre réel du sud au nord et du bon côté de la route.
 - **Lomé** : boulevard Gnassingbé Eyadéma en 2x2 voies avec terre-plein jusqu'au péage de Davié, feux tricolores (GTA, Agoè-Nyivé, Agoè Zongo) avec passages piétons, stations Total, MRS, T-Oil, Sanol, gares CTK, LK, Zam Zam, mairies d'Agoè-Nyivé et de Togblékopé, marchés d'Agoè Zongo et d'Adétikopé, marché à bétail, pont sur le Zio, Hôtel Le Péage.
