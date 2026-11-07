@@ -54,3 +54,5 @@ export function fmtDuration(sec) {
 }
 
 export const round50 = (n) => Math.max(50, Math.round(n / 50) * 50);
+// « de Davié », mais « d’Alédjo »
+export const deName = (n) => (/^[AEIOUYÀÂÉÈÊÎÔÛ]/i.test(n) ? `d’${n}` : `de ${n}`);

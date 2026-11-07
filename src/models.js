@@ -849,3 +849,17 @@ export function makeShadowTexture() {
   g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
 }
+
+// branchages posés sur la chaussée derrière un véhicule en panne (signalisation d'usage sur les routes togolaises)
+export function branches() {
+  const parts = [];
+  for (let k = 0; k < 4; k++) {
+    const x = (k - 1.5) * 0.75, ry = 0.4 + k * 0.9;
+    parts.push(cyl(0.05, 0.07, 2.2, 5, '#6b4a2e', { x, y: 0.12, rz: PI / 2, ry }));
+    for (let j = 0; j < 5; j++) {
+      const o = (j - 2) * 0.42;
+      parts.push(ico(0.42 + (j % 2) * 0.12, j % 2 ? '#3f6e27' : '#5d8f34', { x: x + Math.cos(ry) * o, y: 0.38 + (j % 2) * 0.12, z: -Math.sin(ry) * o, sy: 0.85 }));
+    }
+  }
+  return merge(parts);
+}

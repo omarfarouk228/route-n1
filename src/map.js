@@ -28,7 +28,7 @@ function setup(canvas, w, h) {
 const C = { land: '#e9dfc4', land2: '#dccfae', border: '#7a6a4a', sea: '#9cc3c9', road: '#ffffff', done: '#f4c430', ink: '#1b1a17', red: '#d03a2f', green: '#0f5c3c' };
 
 /* ------------------------------------------------------------ carte complète */
-export function drawFullMap(canvas, { w, h, stage = 0, progress = 0, showNeighbors = true, dark = false }) {
+export function drawFullMap(canvas, { w, h, stage = 0, progress = 0, rev = false, showNeighbors = true, dark = false }) {
   const g = setup(canvas, w, h);
   const B = getBounds();
   const pad = 18;
@@ -66,7 +66,11 @@ export function drawFullMap(canvas, { w, h, stage = 0, progress = 0, showNeighbo
   line(0, ROUTE_XY.length - 1, dark ? '#0b0d0b' : '#5a4a32', 4.5);
   line(0, ROUTE_XY.length - 1, C.road, 2.2);
   const fi = routeIndex(stage, progress);
-  if (fi > 0) { line(0, Math.floor(fi), C.ink, 5); line(0, Math.floor(fi), C.done, 3); }
+  if (rev) {
+    // retour : l'aller est fait (jaune), la portion du retour déjà roulée est en vert
+    line(0, ROUTE_XY.length - 1, C.ink, 5); line(0, ROUTE_XY.length - 1, C.done, 3);
+    if (fi < ROUTE_XY.length - 1) line(Math.floor(fi), ROUTE_XY.length - 1, '#3fd38a', 3);
+  } else if (fi > 0) { line(0, Math.floor(fi), C.ink, 5); line(0, Math.floor(fi), C.done, 3); }
   // villes
   g.textAlign = 'left';
   for (const name of TOWNS) {
@@ -76,7 +80,7 @@ export function drawFullMap(canvas, { w, h, stage = 0, progress = 0, showNeighbo
   }
   STAGE_CITIES.forEach((name, i) => {
     const [x, y] = P(ROUTE_XY[PLACES[name].i]);
-    const passed = i <= stage;
+    const passed = rev ? true : i <= stage;
     g.fillStyle = passed ? C.done : '#ffffff'; g.strokeStyle = C.ink; g.lineWidth = 2;
     g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); g.stroke();
     g.font = '800 11.5px Archivo, Arial, sans-serif';
@@ -95,11 +99,11 @@ export function drawFullMap(canvas, { w, h, stage = 0, progress = 0, showNeighbo
 }
 
 /* ------------------------------------------------------------ mini-carte (orientée dans le sens de la marche) */
-export function drawMiniMap(canvas, { size, stage, progress, kmPerPx = 0.32 }) {
+export function drawMiniMap(canvas, { size, stage, progress, rev = false, kmPerPx = 0.32 }) {
   const g = setup(canvas, size, size);
   const fi = routeIndex(stage, progress);
   const [cx, cy] = routeXY(fi);
-  const head = headingAt(fi);
+  const head = headingAt(fi) + (rev ? Math.PI : 0); // orientée dans le sens de la marche
   const S = 1 / kmPerPx;
   const R = size / 2;
   g.save();
@@ -123,7 +127,8 @@ export function drawMiniMap(canvas, { size, stage, progress, kmPerPx = 0.32 }) {
     g.strokeStyle = color; g.lineWidth = wdt; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke();
   };
   seg(i0, i1, '#5a4a32', 6); seg(i0, i1, '#ffffff', 3.5);
-  if (Math.floor(fi) > i0) { seg(i0, Math.floor(fi), '#f4c430', 3.5); }
+  if (rev) { if (i1 > Math.floor(fi)) seg(Math.floor(fi), i1, '#f4c430', 3.5); }
+  else if (Math.floor(fi) > i0) { seg(i0, Math.floor(fi), '#f4c430', 3.5); }
   // villes visibles (texte remis droit)
   for (const name of [...STAGE_CITIES, ...TOWNS]) {
     const p = PLACES[name];

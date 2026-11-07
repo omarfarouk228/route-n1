@@ -1,5 +1,6 @@
 import { pick, rand, round50, weighted } from './util.js';
 import { stageKm, tOf, kmOf, STAGE_CITIES } from './geo.js';
+export { kmOf };
 
 // Villes-étapes de la N1, du sud au nord.
 export const CITIES = [
@@ -155,32 +156,86 @@ export const TRAITS = {
 const TRAIT_WEIGHTS = { commerce: 3, presse: 2, malade: 1.5, etudiant: 2, ancien: 1.2, chevre: 0.8, agent: 2 };
 
 let pid = 0;
-export function makeOffers(rng, cityIndex, aboard = []) {
+export const nextPid = () => ++pid;
+export const bumpPid = (n) => { pid = Math.max(pid, n); };
+
+// sens du voyage : dir = 1 à l'aller (Lomé → Dapaong), -1 au retour ; k = numéro de l'étape dans ce sens
+export const cityAt = (dir, k) => (dir > 0 ? k : CITIES.length - 1 - k);
+export const legIndex = (dir, cityIndex) => (dir > 0 ? cityIndex : CITIES.length - 1 - cityIndex);
+const kmBetween = (a, b) => Math.abs(kmOf(b) - kmOf(a));
+
+// répliques de quai, selon le profil
+export const BOARD_LINES = {
+  commerce: ['Mes sacs de maïs vont au marché de {d}.', 'J’ai des pagnes à livrer à {d}, fais attention aux colis.', 'Chauffeur, le marché de {d} n’attend pas !'],
+  presse: ['On part quand ? J’ai un rendez-vous à {d}.', 'Si tu roules bien, je te donne quelque chose en plus.', 'Je dois être à {d} avant midi.'],
+  malade: ['Je supporte mal la route… doucement jusqu’à {d}.', 'Place près de la fenêtre, s’il te plaît.', 'Pas trop de virages, hein.'],
+  etudiant: ['Je rentre à {d} pour les vacances.', 'Fais-moi un prix étudiant, tonton.', 'Je vais voir ma famille à {d}.'],
+  ancien: ['Mon fils, conduis doucement jusqu’à {d}.', 'Je vais aux funérailles de mon frère à {d}.', 'À mon âge, on ne court plus.'],
+  chevre: ['La chèvre est pour la fête à {d}.', 'Attache-la bien sur le toit.', 'Elle est sage, elle ne bougera pas.'],
+  agent: ['Mutation à {d}, je prends mon poste lundi.', 'Mission de service à {d}.', 'Le prix normal, pas plus.'],
+};
+
+function fareFor(rng, T, km, bags, hop) {
+  return round50(km * PRICES.farePerKm * T.fareMul * rand(rng, 0.9, 1.1) + bags * PRICES.bagPerHop * hop);
+}
+
+// un passager : `to` = ville d'arrivée (index de CITIES) ; `town` = village où il descend en route (étape `leg`)
+export function makePassenger(rng, { from, to, town = null, leg, dir, taken, fromName }) {
+  const female = rng() < 0.5;
+  const trait = weighted(rng, TRAIT_WEIGHTS);
+  const T = TRAITS[trait];
+  const pool = (female ? FEMALE : MALE).filter((x) => !taken.has(x));
+  const first = pick(rng, pool.length ? pool : female ? FEMALE : MALE);
+  taken.add(first);
+  let name = first;
+  if (trait === 'ancien') name = (female ? 'Mémé ' : 'Papa ') + name;
+  else if (trait === 'commerce' && female) name = 'Tantie ' + name;
+  const hop = town ? 1 : Math.abs(to - from);
+  const bags = town ? Math.min(1, T.bags[0] + Math.floor(rng() * 2)) : T.bags[0] + Math.floor(rng() * (T.bags[1] - T.bags[0] + 1));
+  const destName = town || CITIES[to].name;
+  const km = Math.round(kmBetween(fromName || CITIES[from].name, destName));
+  const fare = fareFor(rng, T, km, bags, hop);
+  const line = pick(rng, BOARD_LINES[trait]).replace('{d}', destName);
+  return { id: ++pid, name, first, female, trait, to, from, town, leg, dir, bags, fare, sat: 100, km, line, look: Math.floor(rng() * 1e6) };
+}
+
+export function makeOffers(rng, cityIndex, aboard = [], dir = 1) {
   const offers = [];
   const taken = new Set(aboard.map((p) => p.first));
   const n = 5 + Math.floor(rng() * 4);
-  for (let k = 0; k < n; k++) {
-    const maxTo = Math.min(CITIES.length - 1, cityIndex + 3);
-    const span = maxTo - cityIndex;
+  const k = legIndex(dir, cityIndex);
+  const last = dir > 0 ? CITIES.length - 1 : 0;
+  const leg = legOf(dir, k);
+  const towns = leg.towns.filter((t) => t.t > 0.08 && t.t < 0.92);
+  for (let j = 0; j < n; j++) {
+    // quelques voyageurs descendent dans un village de l'étape (comme dans un vrai taxi-brousse)
+    if (towns.length && rng() < 0.28) {
+      const t = pick(rng, towns);
+      offers.push(makePassenger(rng, { from: cityIndex, to: cityIndex + dir, town: t.name, leg: k, dir, taken }));
+      continue;
+    }
+    const span = Math.min(3, Math.abs(last - cityIndex));
     // plus de demandes pour les villes proches
     const hop = 1 + Math.floor(Math.pow(rng(), 1.7) * span);
-    const to = cityIndex + hop;
-    const female = rng() < 0.5;
-    const trait = weighted(rng, TRAIT_WEIGHTS);
-    const T = TRAITS[trait];
-    const pool = (female ? FEMALE : MALE).filter((x) => !taken.has(x));
-    const first = pick(rng, pool.length ? pool : female ? FEMALE : MALE);
-    taken.add(first);
-    let name = first;
-    if (trait === 'ancien') name = (female ? 'Mémé ' : 'Papa ') + name;
-    else if (trait === 'commerce' && female) name = 'Tantie ' + name;
-    const bags = T.bags[0] + Math.floor(rng() * (T.bags[1] - T.bags[0] + 1));
-    let km = 0;
-    for (let i = cityIndex; i < to; i++) km += STAGES[i].km;
-    const fare = round50(km * PRICES.farePerKm * T.fareMul * rand(rng, 0.9, 1.1) + bags * PRICES.bagPerHop * hop);
-    offers.push({ id: ++pid, name, first, female, trait, to, from: cityIndex, bags, fare, sat: 100, km });
+    const to = cityIndex + dir * hop;
+    offers.push(makePassenger(rng, { from: cityIndex, to, leg: k + hop - 1, dir, taken }));
   }
-  return offers.sort((a, b) => a.to - b.to);
+  return offers.sort((a, b) => Math.abs(a.to - cityIndex) - Math.abs(b.to - cityIndex) || (a.town ? -1 : 1));
+}
+
+// voyageur qui fait signe au bord de la route : il va à la prochaine ville-étape (ou un peu plus loin)
+export function makeHailer(rng, { dir, k, aboard, villageName = null }) {
+  const taken = new Set(aboard.map((p) => p.first));
+  const from = cityAt(dir, k);
+  const last = dir > 0 ? CITIES.length - 1 : 0;
+  const hop = Math.min(Math.abs(last - from), rng() < 0.7 ? 1 : 2);
+  const to = from + dir * hop;
+  const p = makePassenger(rng, { from, to, leg: k + hop - 1, dir, taken });
+  // payé pour la portion restante seulement : environ la moitié de l'étape
+  p.fare = round50(p.fare * (hop === 1 ? 0.55 : 0.75));
+  p.km = Math.round(p.km * (hop === 1 ? 0.5 : 0.75));
+  p.roadside = villageName || true;
+  return p;
 }
 
 export function traitLabel(p) {
@@ -212,3 +267,14 @@ STAGES.forEach((st, i) => {
   const a = kmOf(STAGE_CITIES[i]), b = kmOf(STAGE_CITIES[i + 1]);
   st.tolls = TOLLS.filter((t) => t.km > a && t.km < b).map((t) => ({ name: t.name, t: t.t ?? +((t.km - a) / (b - a)).toFixed(3) }));
 });
+
+// étapes : géographie (geoIndex) et sens (reverse). Au retour, l'étape k parcourt l'étape 5-k à l'envers.
+STAGES.forEach((st, i) => { st.geoIndex = i; st.reverse = false; st.from = i; st.to = i + 1; });
+const flipT = (list) => list.map((o) => ({ ...o, t: +(1 - o.t).toFixed(3) })).sort((a, b) => a.t - b.t);
+export const RSTAGES = STAGES.map((S, i) => {
+  const z = S.zones, zones = [];
+  for (let j = z.length - 1; j >= 0; j--) zones.push({ until: j === 0 ? 1 : +(1 - z[j - 1].until).toFixed(3), biome: z[j].biome });
+  return { ...S, zones, towns: flipT(S.towns), rivers: flipT(S.rivers), tolls: flipT(S.tolls), geoIndex: i, reverse: true, from: i + 1, to: i };
+});
+export function legOf(dir, k) { return dir > 0 ? STAGES[k] : RSTAGES[STAGES.length - 1 - k]; }
+export const LEGS = STAGES.length;

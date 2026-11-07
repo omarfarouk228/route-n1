@@ -2,6 +2,8 @@ import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, TOTAL_KM, WEATHER_LA
 import { fmtMoney, fmtClock, fmtDuration, clamp } from './util.js';
 import { VEHICLES, PALETTE, STRIPES, RIMS, SLOGANS, cleanText } from './garage.js';
 import { drawFullMap, drawMiniMap } from './map.js';
+import { portraitSVG } from './portraits.js';
+import { START_CASH } from './career.js';
 
 const $ = (s) => document.querySelector(s);
 const ICONS = {
@@ -102,7 +104,7 @@ export function alert(a) {
 }
 
 /* ------------------------------------------------------------ HUD */
-let citiesBuilt = false;
+let citiesBuilt = false, citiesDir = 1;
 const cityPos = (() => {
   const pos = [0];
   let acc = 0;
@@ -123,11 +125,16 @@ export function updateHud(d) {
       ticks.push(`<line x1="${85 + Math.cos(a) * r1}" y1="${85 + Math.sin(a) * r1}" x2="${85 + Math.cos(a) * r2}" y2="${85 + Math.sin(a) * r2}"/>`);
     }
     $('#sp-ticks').innerHTML = ticks.join('');
-    $('#h-cities').innerHTML = CITIES.map((c, i) => `<span data-i="${i}" class="${i % 2 ? 'up' : ''}" style="left:${cityPos[i] * 100}%">${esc(c.name)}</span>`).join('');
     citiesBuilt = true;
+    citiesDir = 0;
   }
-  $('#h-stage').textContent = `Étape ${d.stage + 1}/${STAGES.length} · ${d.weatherLabel}`;
-  $('#h-route').textContent = `${CITIES[d.stage].name} → ${CITIES[d.stage + 1].name}`;
+  // barre du trajet : au retour, Dapaong est à gauche et Lomé à droite
+  if (citiesDir !== d.dir) {
+    citiesDir = d.dir;
+    $('#h-cities').innerHTML = CITIES.map((c, i) => `<span data-i="${i}" class="${i % 2 ? 'up' : ''}" style="left:${(d.dir > 0 ? cityPos[i] : 1 - cityPos[i]) * 100}%">${esc(c.name)}</span>`).join('');
+  }
+  $('#h-stage').textContent = `${d.dir > 0 ? '' : 'Retour · '}Étape ${d.stage + 1}/${STAGES.length} · ${d.weatherLabel}`;
+  $('#h-route').textContent = `${d.from} → ${d.to}`;
   $('#h-dist').textContent = Math.max(0, Math.round(d.kmLeft));
   $('#h-pax').textContent = `${d.pax}/${SEATS} passagers`;
   $('#h-money').textContent = fmtMoney(d.money);
@@ -138,10 +145,12 @@ export function updateHud(d) {
   arc.style.strokeDasharray = `${(Math.min(140, kmh) / 140) * 320.4} 427.3`;
   arc.classList.toggle('hot', kmh > 100);
   $('#h-gear').textContent = d.speed < -0.3 ? 'R' : kmh < 1 ? 'N' : String(1 + [25, 47, 68, 90].filter((g) => kmh > g).length);
-  const prog = cityPos[d.stage] + (cityPos[d.stage + 1] - cityPos[d.stage]) * clamp(d.stageProgress, 0, 1);
+  const gs = d.map.stage, gf = cityPos[gs] + (cityPos[gs + 1] - cityPos[gs]) * clamp(d.map.progress, 0, 1);
+  const prog = d.dir > 0 ? gf : 1 - gf;
   $('#h-fill').style.width = prog * 100 + '%';
   $('#h-dot').style.left = prog * 100 + '%';
-  for (const sp of document.querySelectorAll('#h-cities span')) sp.classList.toggle('cur', +sp.dataset.i === d.stage + 1);
+  const cur = d.dir > 0 ? d.stage + 1 : CITIES.length - 2 - d.stage;
+  for (const sp of document.querySelectorAll('#h-cities span')) sp.classList.toggle('cur', +sp.dataset.i === cur);
   setBar($('#g-fuel'), d.fuel / TANK);
   $('#g-fuel-t').textContent = d.fuel.toFixed(d.fuel < 10 ? 1 : 0) + ' L';
   setBar($('#g-hp'), d.hp / 100);
@@ -151,7 +160,13 @@ export function updateHud(d) {
 }
 
 /* ------------------------------------------------------------ titre */
-export function renderTitle({ best, onStart, onGarage, vehicle }) {
+const bestLabel = (b) => {
+  const legs = b.legs ?? b.reached;
+  if (legs >= STAGES.length * 2) return `aller-retour complet`;
+  if (legs > STAGES.length) return `retour jusqu’à ${CITIES[CITIES.length - 1 - (legs - STAGES.length)].name}`;
+  return `à ${CITIES[legs].name}`;
+};
+export function renderTitle({ best, onStart, onGarage, vehicle, career, saved }) {
   const el = $('#s-title');
   const strip = CITIES.map((c) => `<span>${esc(c.name)}</span>`).join('<i></i>');
   const touch = document.body.classList.contains('touch');
@@ -162,14 +177,19 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
       <p class="lead">Charge tes passagers à la gare, double les camions surchargés, garde un œil sur l’essence et passe la faille d’Alédjo sans perdre les colis du toit. Le tracé suit la vraie N1, de la côte au Sahel.</p>
       <div class="route-strip">${strip}</div>
       <div class="title-actions">
-        <button class="btn" id="t-start">Prendre la route <span class="kbd">Entrée</span></button>
-        <button class="btn ghost" id="t-garage">Garage</button>
+        ${saved ? `<button class="btn" id="t-resume">Reprendre le voyage <span class="kbd">Entrée</span></button>` : ''}
+        <button class="btn${saved ? ' ghost' : ''}" id="t-start">${saved ? 'Nouveau voyage' : 'Prendre la route <span class="kbd">Entrée</span>'}</button>
+        <button class="btn ghost" id="t-garage">Garage et atelier</button>
       </div>
-      <div class="title-meta">${best ? `<span>Record : <b>${fmtMoney(best.money)}</b> à ${esc(CITIES[best.reached].name)}</span>` : '<span>Pas encore de record.</span>'}<span>Véhicule : <b>${esc(vehicle)}</b></span><span>Gratuit · PC et mobile</span></div>
+      ${saved ? `<div class="title-save">Voyage en cours : ${esc(saved.label)}</div>` : ''}
+      <div class="title-meta">${best ? `<span>Record : <b>${fmtMoney(best.money)}</b> ${esc(bestLabel(best))}</span>` : '<span>Pas encore de record.</span>'}<span>Épargne : <b>${fmtMoney(career.savings)}</b></span>${career.trips ? `<span>Voyages réussis : <b>${career.trips}</b>${career.returns ? ` dont ${career.returns} aller-retour` : ''}</span>` : ''}<span>Véhicule : <b>${esc(vehicle)}</b></span><span>Gratuit · PC et mobile</span></div>
       <details class="howto">
         <summary>Comment on joue</summary>
         <ul>
-          <li><b>À la gare</b> : choisis tes passagers selon la place et les colis, fais le plein, répare.</li>
+          <li><b>À la gare</b> : choisis tes passagers selon la place et les colis, marchande le prix si tu oses, fais le plein, répare.</li>
+          <li><b>En route</b> : dépose ceux qui descendent dans un village (bas-côté droit), prends ceux qui font signe, écoute les demandes des passagers.</li>
+          <li><b>Imprévus</b> : crevaison (change la roue sur le bas-côté), moteur qui chauffe dans la faille, camion en panne, troupeau de zébus, route inondée.</li>
+          <li><b>Carrière</b> : le bénéfice de chaque voyage va à ton épargne ; à l’atelier, il paie amortisseurs, pneus, radiateur… À Dapaong, tu peux faire le retour vers Lomé.</li>
           <li><b>Commandes</b> : ${touch ? 'boutons Gaz, Frein, flèches et Klaxon' : '<span class="kbd">↑</span> gaz, <span class="kbd">↓</span> frein et marche arrière, <span class="kbd">←</span> <span class="kbd">→</span> direction, <span class="kbd">Espace</span> klaxon, <span class="kbd">C</span> caméra, <span class="kbd">R</span> radio, <span class="kbd">V</span> afficher, réduire ou masquer la radio'}.</li>
           <li><b>Manette</b> (Xbox, PlayStation…) : RT accélère, LT freine, stick gauche pour tourner, X klaxonne, Y caméra, LB / RB stations, Start pause, A valide.</li>
           <li><b>Klaxonne</b> derrière un camion : il se range à droite. Regarde d’abord en face avant de doubler.</li>
@@ -184,16 +204,14 @@ export function renderTitle({ best, onStart, onGarage, vehicle }) {
   el.appendChild(tm);
   drawFullMap(tm, { w: 300, h: Math.min(660, window.innerHeight - 80), stage: 0, progress: 0, dark: true });
   el.querySelector('#t-start').onclick = onStart;
+  if (saved) el.querySelector('#t-resume').onclick = saved.onResume;
   el.querySelector('#t-garage').onclick = onGarage;
 }
 
 /* ------------------------------------------------------------ gare routière */
 export function renderGare(ctx) {
-  const { run, offers, weather, onToggle, onFuel, onRepair, onGo } = ctx;
+  const { run, offers, weather, onToggle, onHaggle, onFuel, onRepair, onGo, here: city, next, leg: S, map } = ctx;
   const el = $('#s-gare');
-  const city = CITIES[run.stage];
-  const next = CITIES[run.stage + 1];
-  const S = STAGES[run.stage];
   const seatsUsed = run.passengers.length;
   const roofUsed = run.bags;
   const fullL = TANK - run.fuel;
@@ -205,21 +223,26 @@ export function renderGare(ctx) {
 
   const paxCard = (p, state) => {
     const T = TRAITS[p.trait];
-    const dest = CITIES[p.to].name;
+    const dest = p.town ? p.town : CITIES[p.to].name;
     const bags = p.bags ? ` · ${p.bags} colis` : '';
-    const cls = state === 'aboard' ? 'pax aboard' : `pax${state === 'on' ? ' on' : ''}${state === 'full' ? ' full' : ''}`;
-    const tag = state === 'aboard' ? 'div' : 'button';
-    return `<${tag} class="${cls}" data-id="${p.id}" ${tag === 'button' ? 'type="button"' : ''} aria-pressed="${state === 'on'}">
-      <div class="ic">${ICONS[p.trait] || ''}</div>
-      <div><div class="nm">${esc(p.name)} <span>→ ${esc(dest)}</span></div>
-      <div class="tr">${esc(traitLabel(p))}${bags} · ${esc(T.desc)}</div></div>
-      <div class="fare">${state === 'aboard' ? `${Math.round(p.sat)}%` : fmtMoney(p.fare)}<small>${state === 'aboard' ? 'satisfaction' : `${p.km} km`}</small></div>
-    </${tag}>`;
+    const cls = state === 'aboard' ? 'pax aboard' : `pax${state === 'on' ? ' on' : ''}${state === 'full' ? ' full' : ''}${p.gone ? ' gone' : ''}`;
+    const canHaggle = state === 'free' && !p.haggled && !p.gone;
+    const quote = p.reply ? `<div class="say reply${p.gone ? ' no' : ''}">« ${esc(p.reply)} »</div>` : p.line && state !== 'aboard' ? `<div class="say">« ${esc(p.line)} »</div>` : '';
+    return `<div class="${cls}" data-id="${p.id}">
+      <${state === 'aboard' || p.gone ? 'div' : 'button type="button"'} class="pax-main" data-pick="${p.id}" aria-pressed="${state === 'on'}">
+        <div class="ic">${portraitSVG(p, 44)}<i>${ICONS[p.trait] || ''}</i></div>
+        <div><div class="nm">${esc(p.name)} <span>→ ${esc(dest)}${p.town ? ' <em class="tag-town">en route</em>' : ''}</span></div>
+        <div class="tr">${esc(traitLabel(p))}${bags} · ${esc(T.desc)}</div>${quote}</div>
+        <div class="fare">${state === 'aboard' ? `${Math.round(p.sat)}%` : p.gone ? '·' : fmtMoney(p.fare)}<small>${state === 'aboard' ? 'satisfaction' : p.gone ? 'parti' : p.agreed ? 'prix marchandé' : `${p.km} km`}</small></div>
+      </${state === 'aboard' || p.gone ? 'div' : 'button'}>
+      ${canHaggle ? `<button type="button" class="haggle" data-haggle="${p.id}" title="Demander 20 % de plus : il peut accepter, discuter ou partir">Marchander</button>` : ''}
+    </div>`;
   };
 
   const aboard = run.passengers.filter((p) => !offers.some((o) => o.id === p.id));
   const offerCards = offers.map((o) => {
     const on = run.passengers.some((p) => p.id === o.id);
+    if (o.gone) return paxCard(o, 'full');
     const fits = seatsUsed < SEATS && roofUsed + o.bags <= ROOF;
     return paxCard(o, on ? 'on' : fits ? 'free' : 'full');
   }).join('');
@@ -232,9 +255,9 @@ export function renderGare(ctx) {
     <div class="gare">
       <div class="card gare-head"><div class="stripe"></div><div class="inner">
         <div>
-          <div class="eyebrow">Étape ${run.stage + 1} sur ${STAGES.length} · ${fmtClock(run.hour)}</div>
+          <div class="eyebrow">${run.dir > 0 ? 'Aller' : 'Retour'} · étape ${run.stage + 1} sur ${STAGES.length} · ${fmtClock(run.hour)}</div>
           <h2>${esc(city.gare)}</h2>
-          <div class="next">Prochaine ville : <b>${esc(next.name)}</b> · ~${S.km} km de N1 · <span class="weather">${weather === 'rain' ? '🌧' : weather === 'harmattan' ? '🌫' : '☀'} ${WEATHER_LABEL[weather]}</span>${S.landmark ? ` · passage de la <b>${esc(S.landmark)}</b>` : ''}</div>
+          <div class="next">Prochaine ville : <b>${esc(next.name)}</b> · ~${S.km} km de N1 · <span class="weather">${weather === 'rain' ? '🌧' : weather === 'harmattan' ? '🌫' : '☀'} ${WEATHER_LABEL[weather]}</span>${S.landmark ? ` · ${S.reverse ? 'descente' : 'passage'} de la <b>${esc(S.landmark)}</b>` : ''}</div>
         </div>
         <div class="cash"><div class="eyebrow">${run.money < 0 ? 'Dette' : 'En caisse'}</div><b style="${run.money < 0 ? 'color:var(--red)' : ''}">${fmtMoney(run.money)}</b></div>
       </div></div>
@@ -242,7 +265,7 @@ export function renderGare(ctx) {
       <div class="card mapcard"><h3 style="margin:2px 4px 8px;font:13px var(--display);text-transform:uppercase">La N1 · ${esc(city.name)} → ${esc(next.name)}</h3><canvas id="gare-map"></canvas></div>
       <div class="card panel">
         <h3>Sur le quai <small>${offers.length} personnes attendent</small></h3>
-        <p class="hint">Le prix du voyage est payé à la montée. À l’arrivée, un passager content laisse un pourboire ; un passager secoué discute le prix.</p>
+        <p class="hint">Le prix du voyage est payé à la montée. À l’arrivée, un passager content laisse un pourboire ; un passager secoué discute le prix. Marchander rapporte plus, mais certains partent prendre un autre taxi. Ceux qui descendent « en route » s’arrêtent dans un village de l’étape.</p>
         <div class="pax-list">${offerCards || '<p class="hint">Personne n’attend.</p>'}</div>
       </div>
 
@@ -268,8 +291,9 @@ export function renderGare(ctx) {
     </div>`;
 
   const gm = el.querySelector('#gare-map');
-  if (gm && window.innerWidth > 900) drawFullMap(gm, { w: 228, h: 520, stage: run.stage, progress: 0, dark: true });
-  for (const b of el.querySelectorAll('button.pax')) b.onclick = () => onToggle(+b.dataset.id);
+  if (gm && window.innerWidth > 900) drawFullMap(gm, { w: 228, h: 520, ...map, dark: true });
+  for (const b of el.querySelectorAll('button[data-pick]')) b.onclick = () => onToggle(+b.dataset.pick);
+  for (const b of el.querySelectorAll('button[data-haggle]')) b.onclick = () => onHaggle(+b.dataset.haggle);
   el.querySelector('#f10').onclick = () => onFuel(fuel10, price(fuel10));
   el.querySelector('#ffull').onclick = () => onFuel(fullL, price(fullL));
   el.querySelector('#r25').onclick = () => onRepair(rep25, rprice(rep25));
@@ -278,7 +302,7 @@ export function renderGare(ctx) {
 }
 
 /* ------------------------------------------------------------ arrivée d'étape */
-export function renderArrival({ run, city, lines, extra, stageTime, onNext, last }) {
+export function renderArrival({ run, city, lines, extra, stageTime, onNext, last, canReturn, onReturn }) {
   const el = $('#s-arrival');
   const rows = lines.map((l) => {
     const cls = l.amount > 0 ? 'pos' : l.amount < 0 ? 'neg' : '';
@@ -290,21 +314,24 @@ export function renderArrival({ run, city, lines, extra, stageTime, onNext, last
       <h2>${esc(city.name)}</h2>
       <p class="sub">${lines.length ? 'Les passagers descendent et règlent leurs comptes.' : 'Personne ne descend ici.'} ${extra || ''}</p>
       <div class="ledger">${rows}<div class="l total"><span>En caisse</span><b>${fmtMoney(run.money)}</b></div></div>
-      <div class="actions"><button class="btn green" id="a-next">${last ? 'Voir le bilan' : `Entrer en gare de ${esc(city.name)}`} <span class="kbd">Entrée</span></button></div>
+      ${canReturn ? '<p class="sub">Terminus de l’aller. Tu peux t’arrêter là, ou charger le taxi pour <b>le retour vers Lomé</b> avec ta caisse : six étapes de plus, la faille d’Alédjo en descente.</p>' : ''}
+      <div class="actions">${canReturn ? '<button class="btn green" id="a-return">Faire le retour vers Lomé <span class="kbd">Entrée</span></button><button class="btn ghost" id="a-next">Terminer le voyage ici</button>'
+        : `<button class="btn green" id="a-next">${last ? 'Voir le bilan' : `Entrer en gare de ${esc(city.name)}`} <span class="kbd">Entrée</span></button>`}</div>
     </div></div>`;
   el.querySelector('#a-next').onclick = onNext;
+  if (canReturn) el.querySelector('#a-return').onclick = onReturn;
 }
 
 /* ------------------------------------------------------------ fin */
-export function renderEnd({ win, reason, run, best, isRecord, onRestart, onShare }) {
+export function renderEnd({ win, roundTrip, reason, run, best, isRecord, profit, career, onRestart, onShare }) {
   const el = $('#s-end');
   const s = run.stats;
   const reached = CITIES[run.reached].name;
   el.innerHTML = `
     <div class="card sheet"><div class="stripe"></div><div class="inner">
       <div class="eyebrow">${win ? 'Terminus' : 'Fin du voyage'} · ${fmtClock(run.hour)}</div>
-      <h2>${win ? 'Dapaong, enfin !' : esc(reason.title)}</h2>
-      <p class="sub">${win ? `Tu as relié Lomé à Dapaong par la N1. ${isRecord ? '<b>Nouveau record !</b>' : ''}` : esc(reason.text)}</p>
+      <h2>${roundTrip ? 'Retour à Lomé !' : win ? 'Dapaong, enfin !' : esc(reason.title)}</h2>
+      <p class="sub">${roundTrip ? `Aller-retour complet : ${Math.round(run.stats.km || 0)} km de N1 dans les deux sens.` : win ? 'Tu as relié Lomé à Dapaong par la N1.' : esc(reason.text)} ${isRecord ? '<b>Nouveau record !</b>' : ''}</p>
       <div class="stats">
         <div><b>${fmtMoney(run.money)}</b><span>En caisse</span></div>
         <div><b>${esc(reached)}</b><span>Ville atteinte</span></div>
@@ -313,7 +340,8 @@ export function renderEnd({ win, reason, run, best, isRecord, onRestart, onShare
         <div><b>${s.fines}</b><span>Amendes</span></div>
         <div><b>${s.crashes}</b><span>Accrochages</span></div>
       </div>
-      ${best ? `<p class="sub">Record : <b>${fmtMoney(best.money)}</b> (${esc(CITIES[best.reached].name)})</p>` : ''}
+      <p class="sub">${profit > 0 ? `Bénéfice versé à ton épargne : <b>+${fmtMoney(profit)}</b> (au-delà des ${fmtMoney(START_CASH)} avancés par le patron).` : `Pas de bénéfice ce voyage : la caisse ne dépasse pas les ${fmtMoney(START_CASH)} avancés par le patron.`} Épargne : <b>${fmtMoney(career.savings)}</b>, à dépenser à l’atelier.</p>
+      ${best ? `<p class="sub">Record : <b>${fmtMoney(best.money)}</b> (${esc(bestLabel(best))})</p>` : ''}
       <div class="actions">
         <button class="btn green" id="e-restart">Nouveau voyage <span class="kbd">Entrée</span></button>
         <button class="btn ghost" id="e-share">Partager mon score</button>
@@ -328,7 +356,7 @@ export function renderEnd({ win, reason, run, best, isRecord, onRestart, onShare
 }
 
 /* ------------------------------------------------------------ pause / modales */
-export function renderPause({ onResume, onRestart, onQuit, stage, progress }) {
+export function renderPause({ onResume, onRestart, onQuit, stage, progress, rev }) {
   const el = $('#s-pause');
   el.innerHTML = `
     <div class="card sheet"><div class="stripe"></div><div class="inner">
@@ -342,31 +370,36 @@ export function renderPause({ onResume, onRestart, onQuit, stage, progress }) {
       </div>
       <canvas id="pause-map" style="margin-top:14px;display:block;border-radius:8px"></canvas>
     </div></div>`;
-  drawFullMap(el.querySelector('#pause-map'), { w: Math.min(478, window.innerWidth - 74), h: 260, stage, progress, showNeighbors: false, dark: true });
+  drawFullMap(el.querySelector('#pause-map'), { w: Math.min(478, window.innerWidth - 74), h: 260, stage, progress, rev, showNeighbors: false, dark: true });
   el.querySelector('#p-resume').onclick = onResume;
   el.querySelector('#p-restart').onclick = onRestart;
   el.querySelector('#p-quit').onclick = onQuit;
 }
 
-export function renderRescue({ money, onPay, onGiveUp }) {
+export function renderRescue({ money, pax, onPay, onChipIn, onCredit, onGiveUp }) {
   const el = $('#s-modal');
   const can = money >= PRICES.rescue;
+  const credit = PRICES.rescue + 1000;
   el.innerHTML = `
     <div class="card sheet"><div class="stripe"></div><div class="inner">
       <div class="eyebrow">Panne sèche</div>
       <h2>Plus une goutte d’essence</h2>
-      <p class="sub">${can ? `Un zémidjan qui passe propose d’aller chercher ${PRICES.rescueLiters} litres au village pour <b>${fmtMoney(PRICES.rescue)}</b>.` : `Un zémidjan propose son aide pour ${fmtMoney(PRICES.rescue)}, mais tu n’as que ${fmtMoney(money)} en caisse.`}</p>
+      <p class="sub">${can ? `Un zémidjan qui passe propose d’aller chercher ${PRICES.rescueLiters} litres au village pour <b>${fmtMoney(PRICES.rescue)}</b>.` : `Un zémidjan propose d’aller chercher ${PRICES.rescueLiters} litres, mais tu n’as que ${fmtMoney(money)} en caisse. ${pax ? 'Tes passagers peuvent se cotiser (ils ne seront pas contents), ou' : 'Il peut'} te faire crédit : ${fmtMoney(credit)} à rembourser sur ta caisse.`}</p>
       <div class="actions">
         ${can ? `<button class="btn green" id="m-pay">Payer le zém (${fmtMoney(PRICES.rescue)})</button>` : ''}
-        <button class="btn ${can ? 'ghost' : 'red'}" id="m-quit">Abandonner le voyage</button>
+        ${!can && pax ? '<button class="btn green" id="m-chip">Les passagers se cotisent</button>' : ''}
+        ${!can ? `<button class="btn ${pax ? 'ghost' : 'green'}" id="m-credit">Crédit du zém (${fmtMoney(credit)})</button>` : ''}
+        <button class="btn ghost" id="m-quit">Abandonner le voyage</button>
       </div>
     </div></div>`;
   if (can) el.querySelector('#m-pay').onclick = onPay;
+  if (!can && pax) el.querySelector('#m-chip').onclick = onChipIn;
+  if (!can) el.querySelector('#m-credit').onclick = onCredit;
   el.querySelector('#m-quit').onclick = onGiveUp;
 }
 
 /* ------------------------------------------------------------ garage */
-export function renderGarage({ cfg, onChange, onSave, onCancel }) {
+export function renderGarage({ cfg, career, upgrades, onChange, onBuy, onSave, onCancel }) {
   const el = $('#s-garage');
   const V = VEHICLES[cfg.model];
   const bar = (v, max) => `<div class="bar"><i style="width:${clamp(v / max, 0.05, 1) * 100}%"></i></div>`;
@@ -398,12 +431,21 @@ export function renderGarage({ cfg, onChange, onSave, onCancel }) {
         <div class="g-sec"><h3>Slogan peint</h3>
           <input class="txt" id="g-slogan" maxlength="22" value="${esc(cfg.slogan)}" placeholder="DIEU EST GRAND" autocomplete="off">
           <div class="chips">${SLOGANS.map((t) => `<button type="button" class="chip small" data-slogan="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
+        <div class="g-sec"><h3>Atelier <small>épargne : ${fmtMoney(career.savings)}</small></h3>
+          <p class="g-note">Le bénéfice de chaque voyage (au-delà des ${fmtMoney(START_CASH)} avancés par le patron) va à ton épargne. Les pièces achetées servent sur tous les véhicules.</p>
+          <div class="ups">${upgrades.map((u) => {
+            const own = !!career.up[u.id];
+            const can = !own && career.savings >= u.price;
+            return `<div class="up${own ? ' own' : ''}"><div><b>${esc(u.name)}</b><span>${esc(u.desc)}</span></div>
+              <button type="button" class="chip${own ? ' on' : ''}" data-buy="${u.id}" ${own || !can ? 'disabled' : ''}>${own ? 'Monté' : fmtMoney(u.price)}</button></div>`;
+          }).join('')}</div></div>
         <div class="g-sec"><h3>Plaque</h3><input class="txt" id="g-plate" maxlength="10" value="${esc(cfg.plate)}" autocomplete="off"></div>
         <div class="g-actions"><button class="btn green" id="g-save">Valider <span class="kbd">Entrée</span></button><button class="btn ghost" id="g-cancel">Annuler</button></div>
       </div>
     </div>`;
   const set = (patch) => onChange({ ...cfg, ...patch });
   for (const b of el.querySelectorAll('[data-model]')) b.onclick = () => set({ model: b.dataset.model });
+  for (const b of el.querySelectorAll('[data-buy]')) b.onclick = () => onBuy(b.dataset.buy);
   for (const b of el.querySelectorAll('[data-body]')) b.onclick = () => set({ body: b.dataset.body });
   for (const b of el.querySelectorAll('[data-rims]')) b.onclick = () => set({ rims: b.dataset.rims });
   for (const b of el.querySelectorAll('[data-stripe]')) b.onclick = () => set({ stripe: +b.dataset.stripe });
@@ -453,11 +495,11 @@ export function radioUI() {
 export function radioVisible(on) { hudOn = on; applyRadioView(); }
 
 let miniT = 0;
-export function updateMiniMap(dt, stage, progress) {
+export function updateMiniMap(dt, pos) {
   miniT -= dt;
   if (miniT > 0) return;
   miniT = 0.12;
   const c = $('#minimap');
   if (!c || c.offsetParent === null) return;
-  drawMiniMap(c, { size: document.body.classList.contains('touch') ? 112 : 156, stage, progress });
+  drawMiniMap(c, { size: document.body.classList.contains('touch') ? 112 : 156, ...pos });
 }

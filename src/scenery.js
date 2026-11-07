@@ -3,7 +3,6 @@ import * as M from './models.js';
 import { MAT } from './models.js';
 import * as CH from './characters.js';
 import { SHOULDER } from './road.js';
-import { CITIES, STAGES } from './data.js';
 import { rand, weighted } from './util.js';
 import { TERRAIN_MAT, WATER_MAT, CONCRETE_MAT } from './terrainmat.js';
 
@@ -282,10 +281,11 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     // poteaux électriques plus serrés en agglomération
   };
 
-  const startCity = CITIES[road.index], endCity = CITIES[road.index + 1];
+  const startCity = road.fromCity, endCity = road.toCity;
   settlement(0, 110, { city: true, dense: 1.6, bigMosque: startCity.name === 'Sokodé', secondWorship: true });
   settlement(L + 70, 160, { city: true, dense: 1.5, bigMosque: endCity.name === 'Sokodé', secondWorship: true });
-  if (road.index === 0) settlement(-60, 60, { style: 'ville', dense: 1.8 });
+  if (startCity.name === 'Lomé') settlement(-60, 60, { style: 'ville', dense: 1.8 });
+  if (endCity.name === 'Lomé') settlement(L + 160, 90, { style: 'ville', dense: 1.8 });
   // gare routière de départ : abri, taxis garés, voyageurs
   place('shelter', 6, -11, { face: true });
   for (let k = 0; k < 4; k++) place('taxi', -18 + k * 7, -8.4 - (k % 2) * 0.3, { yaw: road.headingAt(-18 + k * 7) + 0.25 });
@@ -476,7 +476,7 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     sign.rotation.y = road.headingAt(s) + Math.PI - 0.2;
     group.add(sign);
   }
-  const kmTotal = STAGES[road.index].km;
+  const kmTotal = road.stage.km;
   for (let s = 250; s < L - 150; s += 450) {
     if (nearRiver(s, 20)) continue;
     const km = Math.max(1, Math.round(kmTotal * (1 - s / L)));

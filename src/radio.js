@@ -241,7 +241,7 @@ export class Radio {
       this.sound.init();
       if (!this.synth) this.synth = new SynthStation(this.sound.ctx, this.sound.master);
       this.synth.level = this.volume;
-      if (!this.muted && !this.paused) this.synth.play(t.preset);
+      if (!this.muted && !this.paused && !this.gamePaused) this.synth.play(t.preset);
       this.render();
       return;
     }
@@ -253,6 +253,9 @@ export class Radio {
   }
   // pause du jeu : comme un autoradio, la musique continue ; onglet masqué : tout s'arrête
   pause(on) {
+    // idempotent : « Recommencer l'étape » ou « Abandonner » relancent bien la station générée
+    if (!!this.gamePaused === !!on) return;
+    this.gamePaused = !!on;
     const s = this.current;
     if (!s || this.muted || this.paused) return;
     if (s.kind === 'synth') { if (on) this.synth?.stop(); else this.synth?.play(this.trackInfo.preset); }

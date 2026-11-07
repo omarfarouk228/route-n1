@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { BIOMES } from './data.js';
+import { BIOMES, CITIES } from './data.js';
 import { MAT } from './models.js';
-import { mulberry32, noise2, smoothstep, clamp, rand, weighted } from './util.js';
+import { mulberry32, noise2, smoothstep, clamp, rand, weighted, deName } from './util.js';
 import { routeIndex, headingAt as realHeading } from './geo.js';
 import { TERRAIN_MAT, WATER_MAT, CONCRETE_MAT } from './terrainmat.js';
 
@@ -34,9 +34,14 @@ const STONE = new THREE.Color('#7d6a52');
 const CONCRETE = new THREE.Color('#bdb6a8');
 
 export class Road {
-  constructor(stage, stageIndex, seed) {
+  constructor(stage, stageIndex, seed, opts = {}) {
     this.stage = stage;
-    this.index = stageIndex;
+    this.index = stageIndex; // numéro de l'étape dans le sens du voyage
+    this.geo = stage.geoIndex ?? stageIndex; // étape géographique (sens Lomé → Dapaong)
+    this.rev = !!stage.reverse; // retour : l'étape est parcourue vers le sud
+    this.fromCity = CITIES[stage.from ?? stageIndex];
+    this.toCity = CITIES[stage.to ?? stageIndex + 1];
+    this.weather = opts.weather || 'clear';
     this.length = stage.length;
     this.rng = mulberry32(seed);
     this.n = Math.ceil((this.length + EXTRA - S0) / DS) + 1;
@@ -90,7 +95,7 @@ export class Road {
           flip = -flip;
           segLeft = rand(rng, 55, 95);
           kT = flip * rand(rng, 0.012, 0.02);
-          gT = 0.062;
+          gT = this.rev ? -0.062 : 0.062; // au retour, on descend la faille
         } else if (rng() < B.curvy) {
           segLeft = rand(rng, 90, 260);
           kT = (rng() < 0.5 ? -1 : 1) * rand(rng, 0.002, 0.009) * B.curveAmp;
@@ -107,8 +112,8 @@ export class Road {
       kCur += (kT - kCur) * Math.min(1, DS / 30);
       gCur += (gT - gCur) * Math.min(1, DS / 50);
       // courbure réelle de la N1 (tracé OpenStreetMap lissé) + relief procédural
-      const tt = clamp(s / this.length, 0, 1);
-      const fi0 = routeIndex(this.index, tt), fi1 = routeIndex(this.index, clamp((s + DS) / this.length, 0, 1));
+      const tt = clamp(s / this.length, 0, 1), tt1 = clamp((s + DS) / this.length, 0, 1);
+      const fi0 = routeIndex(this.geo, this.rev ? 1 - tt : tt), fi1 = routeIndex(this.geo, this.rev ? 1 - tt1 : tt1);
       const kReal = s < 0 || s > this.length ? 0 : clamp(-(realHeading(fi1) - realHeading(fi0)) / DS, -0.008, 0.008);
       const kTot = (B.cliff ? kCur : kCur * 0.55) + kReal;
       this.px[i] = x; this.py[i] = y; this.pz[i] = z; this.h[i] = head; this.k[i] = kTot; this.grade[i] = gCur;
@@ -313,6 +318,31 @@ export class Road {
       }
     }
 
+    // imprévus de l'étape : camion en panne (branchages posés sur la chaussée), troupeau de zébus, route inondée
+    const okSpot = (cs, gap = 160) => !this.biomeAt(cs).cliff && !this.villages.some((v) => Math.abs(v.s - cs) < gap)
+      && !this.tolls.some((t) => Math.abs(t.s - cs) < 300) && !this.checkpoints.some((c) => Math.abs(c.s - cs) < 300) && !this.bridgeAt(cs);
+    const spot = (a, b, gap) => { for (let k = 0; k < 30; k++) { const cs = L * rand(rng, a, b); if (okSpot(cs, gap)) return cs; } return null; };
+    this.broken = null;
+    if (rng() < 0.6) { const bs = spot(0.2, 0.8, 140); if (bs) this.broken = { s: bs, spawned: false }; }
+    const north = st.zones.some((z) => ['centre', 'kabye', 'savane', 'sahel'].includes(z.biome));
+    this.herd = null;
+    if (north && rng() < 0.65) {
+      for (let k = 0; k < 30 && !this.herd; k++) {
+        const hs = L * rand(rng, 0.15, 0.85);
+        if (okSpot(hs, 60) && ['centre', 'kabye', 'savane', 'sahel'].includes(this.biomeKey(hs)) && (!this.broken || Math.abs(this.broken.s - hs) > 600)) this.herd = { s: hs };
+      }
+      if (this.herd) this.crossings.push({ s: this.herd.s, kind: 'herd', done: false });
+    }
+    this.floods = [];
+    if (this.weather === 'rain') {
+      const n = 1 + Math.floor(rng() * 2);
+      for (let k = 0; k < n; k++) {
+        const fs = spot(0.15, 0.9, 40);
+        if (fs && !this.floods.some((f) => Math.abs(f.s - fs) < 400) && (!this.broken || Math.abs(this.broken.s - fs) > 200)) this.floods.push({ s: fs, len: rand(rng, 18, 34), hit: false });
+      }
+    }
+    this.potholes = this.potholes.filter((p) => !this.floods.some((f) => Math.abs(f.s - p.s) < f.len / 2 + 2));
+
     // messages au fil de la route
     this.notes = [];
     for (const v of this.towns) this.notes.push({ s: v.s - 110, text: `Bienvenue à ${v.name}`, kind: 'town' });
@@ -320,11 +350,14 @@ export class Road {
       const zi = st.zones.findIndex((z) => BIOMES[z.biome].cliff);
       const fs = zi > 0 ? this.boundaries[zi - 1] : 0;
       this.faille = { s: fs, end: this.boundaries[zi] };
-      this.notes.push({ s: fs - 120, text: `${st.landmark} : forte montée, ligne continue, interdit de doubler`, kind: 'landmark' });
+      this.notes.push({ s: fs - 120, text: `${st.landmark} : ${this.rev ? 'forte descente' : 'forte montée'}, ligne continue, interdit de doubler`, kind: 'landmark' });
     }
     for (const c of this.checkpoints) this.notes.push({ s: c.s - 260, text: 'Contrôle routier dans 250 m : passe sous 20 km/h', kind: 'warn' });
-    for (const t of this.tolls) this.notes.push({ s: t.s - 320, text: `Péage de ${t.name} dans 300 m : arrêt obligatoire, 500 F`, kind: 'warn' });
+    for (const t of this.tolls) this.notes.push({ s: t.s - 320, text: `Péage ${deName(t.name)} dans 300 m : arrêt obligatoire, 500 F`, kind: 'warn' });
     for (const f of this.fuelStops) this.notes.push({ s: f.s - 220, text: 'Vendeuse d’essence à 200 m : arrête-toi sur le bas-côté droit', kind: 'fuel' });
+    if (this.broken) this.notes.push({ s: this.broken.s - 230, text: 'Branchages sur la chaussée : un camion est en panne sur ta voie', kind: 'warn' });
+    if (this.herd) this.notes.push({ s: this.herd.s - 210, text: 'Troupeau de zébus sur la route : ralentis, klaxonne', kind: 'warn' });
+    for (const f of this.floods) this.notes.push({ s: f.s - f.len / 2 - 160, text: 'Route inondée après l’averse : traverse au pas', kind: 'warn' });
     for (const r of this.rivers) if (r.name) this.notes.push({ s: r.s - 90, text: `Pont sur le ${r.name}`, kind: 'town' });
     for (const v of this.villages) if (!v.named) this.notes.push({ s: v.s - span(v) - 60, text: 'Village : ralentisseurs, enfants et animaux', kind: 'info', soft: true });
     this.notes.sort((a, b) => a.s - b.s);
@@ -415,6 +448,7 @@ export class Road {
     g.add(this.markings(inFaille));
     g.add(this.potholeMesh());
     if (this.bumps.length) g.add(this.bumpMesh());
+    for (const f of this.floods) g.add(this.floodMesh(f));
     return g;
   }
 
@@ -560,6 +594,29 @@ export class Road {
     im.receiveShadow = true;
     return im;
   }
+
+  // flaque boueuse en travers de la chaussée (bords irréguliers)
+  floodMesh(f) {
+    const pos = [];
+    const N = 14, M = 10;
+    const pt = (u, v) => {
+      const s = f.s + (u - 0.5) * f.len * (0.75 + 0.25 * Math.sin(v * 9 + f.s));
+      const w = (v - 0.5) * 2 * (HALF_ROAD + 1.4) * (0.82 + 0.18 * Math.sin(u * 7 + f.s * 0.3));
+      const p = this.toWorld(s, w, new THREE.Vector3());
+      return [p.x, p.y + 0.04, p.z];
+    };
+    for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+      const a = pt(i / N, j / M), b = pt((i + 1) / N, j / M), c = pt(i / N, (j + 1) / M), d = pt((i + 1) / N, (j + 1) / M);
+      pos.push(...a, ...c, ...b, ...b, ...c, ...d);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: '#6b5636', specular: '#cfd8e0', shininess: 80, transparent: true, opacity: 0.88, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    m.receiveShadow = true;
+    return m;
+  }
+  floodAt(s) { for (const f of this.floods) if (Math.abs(s - f.s) < f.len / 2) return f; return null; }
 
   potholeMesh() {
     const geo = new THREE.CircleGeometry(1, 7);

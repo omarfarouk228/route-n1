@@ -126,12 +126,23 @@ export class Traffic {
       if (s < L - 60 && this.free(s, 4.8, 2)) this.spawn('moto', s, 4.8, rand(rng, 8, 10.5));
       this.tMoto = rand(rng, 5, 11) / dens;
     }
+    // camion en panne sur notre voie
+    if (r.broken && !r.broken.spawned && r.broken.s - P.s < 520 && r.broken.s > P.s + 60) {
+      r.broken.spawned = true;
+      this.spawn('truck', r.broken.s, 1.9, 0, { broken: true, baseV: 0 });
+    }
     // traversées d'animaux
     for (const c of r.crossings) {
       if (c.done || c.s < P.s || c.s - P.s > 160) continue;
       c.done = true;
-      const n = c.kind === 'zebu' ? 2 + Math.floor(rng() * 3) : 2 + Math.floor(rng() * 4);
       const dirX = rng() < 0.5 ? 1 : -1;
+      if (c.kind === 'herd') {
+        // grand troupeau peul : il traverse lentement, en paquet, sur une vingtaine de mètres
+        const n = 7 + Math.floor(rng() * 4);
+        for (let k = 0; k < n; k++) this.spawn('zebu', c.s + rand(rng, -9, 9), -dirX * (7 + rand(rng, 0, 9)), 0, { vx: dirX * rand(rng, 0.42, 0.62), herd: true });
+        continue;
+      }
+      const n = c.kind === 'zebu' ? 2 + Math.floor(rng() * 3) : 2 + Math.floor(rng() * 4);
       for (let k = 0; k < n; k++) {
         const kind = c.kind === 'goat' && rng() < 0.35 ? 'sheep' : c.kind;
         this.spawn(kind, c.s + rand(rng, -2.5, 2.5) + k * 0.9, -dirX * (8 + k * 1.6), 0, { vx: dirX * rand(rng, 0.9, 1.4) });
@@ -150,16 +161,20 @@ export class Traffic {
         it.x += Math.sign(it.vx) * step;
         const u = it.mesh.material.userData.u;
         if (u) { u.uWalk.value = 1; u.uPhase.value += step * TYPES[it.type].stride; }
-        if (Math.abs(it.x) > 13 && Math.sign(it.x) === Math.sign(it.vx)) { this.release(it); this.items.splice(n, 1); continue; }
+        if (Math.abs(it.x) > (it.herd ? 17 : 13) && Math.sign(it.x) === Math.sign(it.vx)) { this.release(it); this.items.splice(n, 1); continue; }
         this.place(it);
         continue;
       }
+      if (it.broken) { it.v = 0; this.place(it); if (it.s < P.s - 80) { this.release(it); this.items.splice(n, 1); } continue; }
       if (it.dir === 1) {
         let desired = it.baseV;
+        // doubler le camion en panne quand la voie d'en face est libre
+        const bk = this.items.find((o) => o.broken && o.s - it.s > 0 && o.s - it.s < 45);
+        if (bk) it.tx = -1.9; else if (it.tx === -1.9 && !this.items.some((o) => o.broken && Math.abs(o.s - it.s) < 14)) it.tx = it.baseX;
         // suivre le véhicule de devant (y compris le joueur)
         let gap = 1e9, leadV = 0;
         for (const o of this.items) {
-          if (o === it || o.animal || o.dir !== 1) continue;
+          if (o === it || o.animal || o.dir !== 1 || o.broken) continue;
           const d = o.s - it.s;
           if (d > 0 && d < gap && Math.abs(o.x - it.x) < 1.8) { gap = d; leadV = o.v; }
         }

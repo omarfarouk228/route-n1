@@ -1,0 +1,18 @@
+{
+  "name": "Route N1 · Taxi-brousse de Lomé à Dapaong",
+  "short_name": "Route N1",
+  "description": "Conduis un taxi-brousse sur la vraie N1 du Togo, de Lomé à Dapaong et retour.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0c110e",
+  "theme_color": "#0c110e",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

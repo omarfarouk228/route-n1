@@ -1,10 +1,13 @@
 import * as THREE from 'three';
-import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, QUOTES, WEATHER_LABEL, makeOffers, weatherFor } from './data.js';
-import { Road, SHOULDER } from './road.js';
+import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, QUOTES, WEATHER_LABEL, makeOffers, makeHailer, weatherFor, legOf, cityAt, LEGS, bumpPid } from './data.js';
+import { settle, haggle, RUSH_SPEED } from './rules.js';
+import { START_CASH, loadCareer, saveCareer, vehicleSpec, UPGRADES, saveRun, loadRun, clearRun } from './career.js';
+import { Roadside } from './roadside.js';
+import { Road, SHOULDER, HALF_ROAD } from './road.js';
 import { buildScenery, disposeGroup, updateLod } from './scenery.js';
 import { Traffic } from './traffic.js';
 import { Player } from './vehicle.js';
-import { makeVehicle, makeShadowTexture, cloud as cloudGeo } from './models.js';
+import { makeVehicle, makeShadowTexture, cloud as cloudGeo, branches as branchesGeo, MAT } from './models.js';
 import { VEHICLES, STRIPES, loadCfg, saveCfg } from './garage.js';
 import { setCapacity } from './data.js';
 import { Input } from './input.js';
@@ -17,7 +20,7 @@ import { Vendors } from './vendors.js';
 import { Walkers } from './walkers.js';
 import { CHAR_U, CHAR_MAT, armGeo, noteGeo, itemGeo, VENDOR_GOODS } from './characters.js';
 import * as UI from './ui.js';
-import { mulberry32, clamp, pick, fmtMoney, round50 } from './util.js';
+import { mulberry32, clamp, pick, fmtMoney, round50, deName } from './util.js';
 
 /* ------------------------------------------------------------ rendu */
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -66,6 +69,7 @@ const WHITE = new THREE.Color('#ffffff');
 
 // véhicule du joueur, reconstruit à chaque passage au garage
 let garageCfg = loadCfg();
+let career = loadCareer();
 let taxi = null;
 const shadow = new THREE.Mesh(
   new THREE.PlaneGeometry(2.6, 5.4).rotateX(-Math.PI / 2),
@@ -96,7 +100,7 @@ function buildTaxi(cfg) {
   taxi.group.add(shadow, headlight, headlight.target);
   if (old) { taxi.group.position.copy(old.group.position); taxi.group.rotation.copy(old.group.rotation); }
   scene.add(taxi.group);
-  const spec = VEHICLES[cfg.model];
+  const spec = vehicleSpec(cfg.model, career.up);
   setCapacity(spec);
   player.len = spec.len; player.wid = spec.wid;
   // bras de passager qui sort par la vitre pour payer les vendeuses
@@ -195,18 +199,24 @@ let lastQuote = -99;
 let clock = 0;
 let hudTimer = 0;
 
+const legWeathers = (rng, dir) => Array.from({ length: LEGS }, (_, k) => weatherFor(rng, legOf(dir, k).geoIndex));
 function newRun() {
   const seed = (Math.random() * 2 ** 31) | 0;
   const rng = mulberry32(seed);
-  const weathers = STAGES.map((_, i) => weatherFor(rng, i));
+  const weathers = legWeathers(rng, 1);
   weathers[0] = 'clear';
+  const vehicle = vehicleSpec(garageCfg.model, career.up);
   return {
-    seed, rng, weathers, stage: 0, reached: 0, vehicle: VEHICLES[garageCfg.model], cfg: { ...garageCfg },
-    money: 12000, fuel: Math.round(VEHICLES[garageCfg.model].tank * 0.52), hp: 100, passengers: [], bags: 0, hour: 7.1,
-    stats: { carried: 0, tips: 0, fines: 0, crashes: 0 },
+    seed, rng, weathers, dir: 1, stage: 0, reached: 0, legs: 0, vehicle, cfg: { ...garageCfg },
+    money: START_CASH, fuel: Math.round(vehicle.tank * 0.52), hp: 100, passengers: [], bags: 0, hour: 7.1,
+    stats: { carried: 0, tips: 0, fines: 0, crashes: 0, km: 0 },
     stageTime: 0, stageLog: [],
   };
 }
+// ville où se trouve le taxi (index de CITIES) et ville d'arrivée de l'étape en cours
+const hereCity = () => CITIES[cityAt(run.dir, run.stage)];
+const nextCity = () => CITIES[cityAt(run.dir, run.stage + 1)];
+const legKey = () => `${run.dir}:${run.stage}`;
 
 function loadStage(i) {
   if (world) {
@@ -214,25 +224,45 @@ function loadStage(i) {
     world.traffic.dispose();
     world.vendors.dispose();
     world.walkers.dispose();
+    world.roadside.dispose();
     disposeGroup(world.group);
   }
-  const road = new Road(STAGES[i], i, run.seed + i * 7919);
+  const leg = legOf(run.dir, i);
+  const salt = run.dir > 0 ? 0 : 50021;
+  const road = new Road(leg, i, run.seed + salt + i * 7919, { weather: run.weathers[i] });
   const group = new THREE.Group();
   group.add(road.buildMeshes());
-  const scen = buildScenery(road, mulberry32(run.seed + i * 31), QUALITY, SHADOWS);
+  const scen = buildScenery(road, mulberry32(run.seed + salt + i * 31), QUALITY, SHADOWS);
   group.add(scen.group);
   const tg = new THREE.Group();
   group.add(tg);
-  const traffic = new Traffic(tg, road, mulberry32(run.seed + i * 131), SHADOWS);
+  const traffic = new Traffic(tg, road, mulberry32(run.seed + salt + i * 131), SHADOWS);
+  // branchages derrière le camion en panne
+  if (road.broken) {
+    const bg = branchesGeo();
+    for (const ds of [-30, -16]) {
+      const m = new THREE.Mesh(bg, MAT);
+      road.toWorld(road.broken.s + ds, 1.9, m.position);
+      m.rotation.y = road.headingAt(road.broken.s + ds);
+      m.castShadow = SHADOWS;
+      group.add(m);
+    }
+  }
+  const roadside = new Roadside(group, road, mulberry32(run.seed + salt + i * 977), SHADOWS);
   const vendors = new Vendors(group, SHADOWS);
   const walkers = new Walkers(group, SHADOWS, isTouch ? 5 : 9);
   scene.add(group);
-  world = { road, group, traffic, vendors, walkers, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { key: legKey(), road, group, traffic, vendors, walkers, roadside, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  resetLegState();
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
 }
 
 /* ------------------------------------------------------------ règles */
+// état propre à l'étape : crevaison, température moteur, demandes des passagers
+function resetLegState() {
+  Object.assign(world, { flat: null, flatDone: false, heat: 0, hot: false, req: null, reqCd: 40 + Math.random() * 40, reqCount: 0 });
+}
 function damage(x) { run.hp = Math.max(0, run.hp - x); }
 function annoy(x) { for (const p of run.passengers) p.sat = Math.max(0, p.sat - x * TRAITS[p.trait].sens); }
 function soothe(x) { for (const p of run.passengers) p.sat = Math.min(100, p.sat + x); }
@@ -314,8 +344,10 @@ function updateDrive(dt) {
   const ev = player.update(dt, r, inp, run, world.weather);
   run.stageTime += dt;
   // horloge : suit les kilomètres réels parcourus (≈ 60 km/h de moyenne en taxi-brousse), plus le temps à l'arrêt
-  run.hour += (Math.abs(player.v) * dt * (STAGES[run.stage].km / r.length)) / 60 + (dt * 0.12) / 60;
+  run.hour += (Math.abs(player.v) * dt * (r.stage.km / r.length)) / 60 + (dt * 0.12) / 60;
   const speed = Math.abs(player.v);
+  const V = run.vehicle;
+  const cands = []; // alertes candidates (la plus prioritaire s'affiche)
 
   // nids-de-poule : chaque roue peut tomber dedans, on peut les enjamber
   const ph = r.potholes;
@@ -327,9 +359,10 @@ function updateDrive(dt) {
     if (Math.abs(dx - 0.86) < p.r + 0.14) {
       p.hit = true;
       if (speed > 3) {
-        const str = Math.min(1.6, speed / 18) * (p.r / 0.6);
+        const str = Math.min(1.6, speed / 18) * (p.r / 0.6) * V.shock;
         damage(0.5 + str * 3);
         annoy(3 + str * 9);
+        if (str > 0.7 && !world.flat && !world.flatDone && run.rng() < 0.3 * V.flat) startFlat();
         player.kick(1.2 + str * 2.4);
         player.v *= 1 - 0.06 * str;
         sound.bump(Math.min(1.5, 0.4 + str));
@@ -347,7 +380,7 @@ function updateDrive(dt) {
     b.hit = true;
     const kmh = speed * 3.6;
     if (kmh > 25) {
-      const str = Math.min(1.8, (kmh - 20) / 30);
+      const str = Math.min(1.8, (kmh - 20) / 30) * V.shock;
       damage(0.5 + str * 2.5);
       annoy(4 + str * 12);
       player.kick(1.5 + str * 3);
@@ -369,6 +402,62 @@ function updateDrive(dt) {
     if (ev.lat > 5.5) quote('curve');
     if (ev.lat > 6.2 && run.bags > 0 && run.rng() < dt * 0.5) loseBag();
   } else if (ev.lat < 2 && ev.surface === 0 && !ev.hardBrake) soothe(dt * 0.5);
+
+  // crevaison : le taxi tire à droite et plafonne à 45 km/h ; on change la roue sur le bas-côté
+  const parked = speed < 0.4 && player.x > 2.6;
+  if (world.flat) {
+    if (speed > 1) player.yaw += 0.06 * dt * Math.min(1, speed / 10);
+    if (player.v > 12.5) player.v -= (player.v - 12.5) * Math.min(1, dt * 2);
+    if (speed > 8) { damage(dt * 0.45); annoy(dt * 1.2); }
+    if (parked) world.flat.fix += dt;
+    const pct = Math.min(99, Math.round((world.flat.fix / V.wheelTime) * 100));
+    cands.push({ pr: 3, kind: 'warn', text: 'Crevaison', sub: parked ? `On change la roue… ${pct} %` : 'Arrête-toi sur le bas-côté droit pour changer la roue' });
+    if (world.flat.fix >= V.wheelTime) {
+      world.flat = null; world.flatDone = true;
+      UI.toast('Roue de secours montée. Les passagers remontent : on repart !', 'good', 3000);
+      sound.ok();
+    }
+  }
+
+  // surchauffe : longue montée, pied au plancher et taxi chargé (la faille d'Alédjo surtout)
+  {
+    const grade = Math.max(0, r.sample(player.s).grade);
+    const loadF = (run.passengers.length * 70 + run.bags * 28) / (SEATS * 70 + ROOF * 28);
+    const gain = player.throttle * grade * 0.62 * (0.5 + loadF) * V.heat;
+    const cool = world.hot ? (speed < 0.5 ? 0.11 : 0.03) : 0.035 + (speed < 0.5 ? 0.05 : 0);
+    world.heat = clamp(world.heat + (gain - cool) * dt, 0, 1);
+    if (!world.hot && world.heat >= 1) {
+      world.hot = true;
+      damage(4);
+      annoy(6);
+      sound.noise(1.4, 2600, 0.25);
+      UI.toast('De la vapeur sort du capot ! Le moteur a chauffé : arrête-toi pour le laisser refroidir.', 'bad', 4200);
+      quote('crash', true);
+    }
+    if (world.hot) {
+      if (player.v > 4) player.v -= (player.v - 4) * Math.min(1, dt * 1.5);
+      if (world.heat < 0.55) { world.hot = false; UI.toast('Le moteur a refroidi. Doucement dans la montée.', 'good', 2600); }
+      cands.push({ pr: 3, kind: 'warn', text: 'Moteur en surchauffe', sub: speed < 0.5 ? `Refroidissement… ${Math.round(world.heat * 100)} %` : 'Arrête-toi pour le laisser refroidir' });
+    } else if (world.heat > 0.7) cands.push({ pr: 2, kind: 'warn', text: `Moteur chaud · ${Math.round(world.heat * 100)} %`, sub: 'Lève le pied, ou arrête-toi un moment' });
+  }
+
+  // route inondée : au pas ça passe, trop vite c'est la gerbe d'eau dans l'habitacle
+  const fl = r.floodAt(player.s);
+  if (fl && Math.abs(player.x) < HALF_ROAD + 1.4) {
+    player.v -= player.v * Math.min(1, dt * 0.9);
+    if (!fl.hit) {
+      fl.hit = true;
+      const kmh = speed * 3.6;
+      if (kmh > 28) {
+        const str = Math.min(1.5, (kmh - 20) / 35);
+        damage(1.5 + str * 4); annoy(8 + str * 14); player.kick(2 + str * 2);
+        player.yaw += (Math.random() - 0.5) * 0.2 * str;
+        sound.noise(0.9, 700, 0.55);
+        UI.toast(`Gerbe d’eau à ${Math.round(kmh)} km/h ! L’eau rentre par les vitres.`, 'bad', 3200);
+        quote('bump', true);
+      } else { soothe(2); sound.noise(0.6, 400, 0.25); UI.toast('Tu traverses la flaque au pas. Personne n’est mouillé.', 'good', 2400); }
+    }
+  }
 
   // contrôles routiers : passage au ralenti, ou contrôle des papiers (arrêt obligatoire, barrière fermée)
   let alert = null;
@@ -428,7 +517,7 @@ function updateDrive(dt) {
     const d = t.s - player.s;
     if (d < 140 && d > -10) {
       if (!t.warned) { t.warned = true; UI.banner('Poste de péage', t.name, 'Arrêt obligatoire au guichet · 500 F', 2600); }
-      if (!t.paid) alert = { kind: 'toll', text: `Péage de ${t.name}`, sub: d > 14 ? `Arrêt obligatoire · ${Math.round(d)} m` : speed < 0.6 ? 'Paiement au guichet…' : 'Arrête-toi au guichet' };
+      if (!t.paid) alert = { kind: 'toll', text: `Péage ${deName(t.name)}`, sub: d > 14 ? `Arrêt obligatoire · ${Math.round(d)} m` : speed < 0.6 ? 'Paiement au guichet…' : 'Arrête-toi au guichet' };
     }
     if (!t.paid) {
       const stopAt = t.s - 1.4 - halfLen;
@@ -446,9 +535,9 @@ function updateDrive(dt) {
         if (t.wait > 1.4) {
           t.paid = true;
           run.money -= PRICES.toll;
-          log(`Péage de ${t.name}`, -PRICES.toll);
+          log(`Péage ${deName(t.name)}`, -PRICES.toll);
           sound.coin();
-          UI.toast(`Péage de ${t.name} : ${fmtMoney(PRICES.toll)} payés. La barrière se lève.`, 'info', 2800);
+          UI.toast(`Péage ${deName(t.name)} : ${fmtMoney(PRICES.toll)} payés. La barrière se lève.`, 'info', 2800);
         }
       }
     }
@@ -458,6 +547,8 @@ function updateDrive(dt) {
     c.pivots[0].rotation.z += ((ours ? 1.35 : 0) - c.pivots[0].rotation.z) * Math.min(1, dt * 3);
     c.pivots[1].rotation.z += ((theirs ? 1.35 : 0) - c.pivots[1].rotation.z) * Math.min(1, dt * 3);
   }
+  updatePassengersOnRoad(dt, speed, cands);
+  if (!alert && cands.length) alert = cands.sort((a, b) => b.pr - a.pr)[0];
   UI.alert(alert);
 
   // vendeuses d'essence
@@ -512,6 +603,7 @@ function updateDrive(dt) {
   updateWindowHand(dt);
 
   world.walkers.update(dt, r, player, run.rng, r.biomeAt(clamp(player.s, 0, r.length)).traffic || 1);
+  world.roadside.update(dt, player);
 
   // trafic
   const hits = world.traffic.update(dt, player, hornNow, true);
@@ -523,11 +615,121 @@ function updateDrive(dt) {
 
   // fins possibles
   if (run.hp <= 0) {
-    endGame(false, { title: 'Le taxi rend l’âme', text: `Le moteur a lâché entre ${CITIES[run.stage].name} et ${CITIES[run.stage + 1].name}. Les passagers finissent le trajet en zémidjan.` });
+    endGame(false, { title: 'Le taxi rend l’âme', text: `Le moteur a lâché entre ${hereCity().name} et ${nextCity().name}. Les passagers finissent le trajet en zémidjan.` });
     return;
   }
   if (run.fuel <= 0 && speed < 0.3 && !world.fuelling) { openRescue(); return; }
   if (player.s >= r.length - 12) arrive();
+}
+
+/* ------------------------------------------------------------ passagers sur la route */
+function startFlat() {
+  world.flat = { fix: 0 };
+  sound.noise(1.1, 3200, 0.3);
+  sound.bump(1.4);
+  UI.toast('Pchhh ! Crevaison. Le taxi tire à droite : range-toi sur le bas-côté pour changer la roue.', 'bad', 4200);
+  setTimeout(() => quote('bump', true), 900);
+}
+
+// un passager descend en route (village de l'étape)
+function dropPassenger(p, missed) {
+  const late = TRAITS[p.trait].rush && run.stageTime > player.s / RUSH_SPEED;
+  const res = settle(p, { missed, late });
+  for (const l of res.lines) log(l.label, l.amount);
+  run.money += res.total;
+  run.stats.tips += res.total;
+  run.stats.carried++;
+  run.passengers = run.passengers.filter((q) => q !== p);
+  run.bags = run.passengers.reduce((a, q) => a + q.bags, 0);
+  if (missed) { annoy(4); UI.toast(`<b>${p.name}</b> : « Chauffeur, tu as dépassé ${p.town} ! » Il faut rembourser ${fmtMoney(-res.total)}.`, 'bad', 3800); sound.fail(); return; }
+  world.roadside.alight(player);
+  const amt = res.total > 0 ? ` · pourboire ${fmtMoney(res.total)}` : res.total < 0 ? ` · ${fmtMoney(res.total)}` : '';
+  UI.toast(`<b>${p.name}</b> descend à ${p.town}${amt}. « Merci chauffeur, bonne route ! »`, res.total >= 0 ? 'good' : 'warn', 3400);
+  if (res.total > 0) sound.coin();
+}
+
+const REQS = {
+  sick: { text: 'Passager malade', sub: (p, t) => `${p.name} : « Arrête-toi, j’ai mal au cœur ! » · ${Math.ceil(t)} s` },
+  pause: { text: 'Pause demandée', sub: (p, t) => `${p.name} : « Pause pipi au prochain village ! » · ${Math.ceil(t)} s` },
+  slow: { text: 'Doucement !', sub: (p, t) => `${p.name} : « Pas plus de 50, mon fils. » · ${Math.ceil(t)} s` },
+};
+function updatePassengersOnRoad(dt, speed, cands) {
+  const r = world.road;
+  const parked = speed < 0.45 && player.x > 2.4;
+  // descentes dans les villages de l'étape
+  for (const p of [...run.passengers]) {
+    if (!p.town || p.leg !== run.stage) continue;
+    const t = r.towns.find((q) => q.name === p.town);
+    if (!t) { dropPassenger(p, false); continue; }
+    const d = t.s - player.s;
+    if (d < 450 && d > -130) cands.push({ pr: 2.5, kind: 'stop', text: `Arrêt demandé : ${p.town}`, sub: d > 110 ? `${p.name} descend · ${Math.round(d)} m` : parked ? `${p.name} descend…` : 'Range-toi sur le bas-côté droit' });
+    if (Math.abs(d) < 110 && parked) { p.dropT = (p.dropT || 0) + dt; if (p.dropT > 1.1) dropPassenger(p, false); }
+    else if (d < -130) dropPassenger(p, true);
+  }
+  // voyageurs qui font signe au bord de la route
+  for (const sp of world.roadside.spots) {
+    if (sp.state !== 'wait') continue;
+    const d = sp.s - player.s;
+    if (d > 260 || d < -14) continue;
+    if (!sp.p) sp.p = makeHailer(run.rng, { dir: run.dir, k: run.stage, aboard: run.passengers, villageName: sp.village });
+    const p = sp.p;
+    const room = run.passengers.length < SEATS && run.bags + p.bags <= ROOF;
+    const dest = CITIES[p.to].name;
+    cands.push({ pr: 1, kind: 'hail', text: 'Quelqu’un fait signe', sub: room ? `${dest} · ${fmtMoney(p.fare)} · arrête-toi à sa hauteur` : 'Le taxi est plein, continue' });
+    if (room && Math.abs(d) < 18 && parked) {
+      sp.wait = (sp.wait || 0) + dt;
+      if (sp.wait > 0.7) {
+        world.roadside.board(sp);
+        p.sat = 100;
+        run.passengers.push(p);
+        run.bags += p.bags;
+        run.money += p.fare;
+        log(`${p.name} monté${p.female ? 'e' : ''} au bord de la route (${dest})`, p.fare);
+        sound.coin();
+        UI.toast(`<b>${p.name}</b> monte pour ${dest} : « ${p.line} » <b>+${fmtMoney(p.fare)}</b>`, 'good', 3800);
+      }
+    }
+  }
+  // demandes des passagers
+  const R = world.req;
+  if (!R) {
+    if (run.passengers.length && speed > 5 && world.reqCount < 2) world.reqCd -= dt;
+    if (world.reqCd <= 0) {
+      world.reqCd = 60 + Math.random() * 60;
+      const sick = run.passengers.filter((p) => p.trait === 'malade');
+      const old = run.passengers.filter((p) => p.trait === 'ancien');
+      const villageAhead = r.villages.some((v) => v.s - player.s > 200 && v.s - player.s < 1100);
+      let req = null;
+      if (sick.length && Math.random() < 0.8) req = { type: 'sick', p: pick(Math.random, sick), t: 24 };
+      else if (old.length && Math.random() < 0.6) req = { type: 'slow', p: pick(Math.random, old), t: 20 };
+      else if (villageAhead && Math.random() < 0.55) req = { type: 'pause', p: pick(Math.random, run.passengers), t: 70 };
+      if (req) { world.req = req; world.reqCount++; req.hold = 0; sound.tone([740, 560], 0.18, 'triangle', 0.06); }
+    }
+    return;
+  }
+  if (!run.passengers.includes(R.p)) { world.req = null; return; }
+  R.t -= dt;
+  const kmh = speed * 3.6;
+  let ok = false, fail = false;
+  if (R.type === 'sick') { if (parked) R.hold += dt; ok = R.hold > 3; fail = R.t <= 0; }
+  else if (R.type === 'pause') { const inVillage = r.villages.some((v) => Math.abs(v.s - player.s) < (v.named ? 120 : 60)); if (parked && inVillage) R.hold += dt; ok = R.hold > 4; fail = R.t <= 0; }
+  else if (R.type === 'slow') { fail = kmh > 62; ok = R.t <= 0; }
+  if (ok) {
+    world.req = null;
+    if (R.type === 'sick') { R.p.sat = Math.min(100, R.p.sat + 25); soothe(3); UI.toast(`<b>${R.p.name}</b> : « Merci chauffeur… ça va mieux. »`, 'good', 3000); }
+    else if (R.type === 'pause') { soothe(10); UI.toast('Petite pause au village : tout le monde se dégourdit les jambes. Confort +', 'good', 3000); }
+    else { R.p.sat = Math.min(100, R.p.sat + 14); UI.toast(`<b>${R.p.name}</b> : « Merci mon fils, Dieu te garde. »`, 'good', 3000); }
+    sound.ok();
+  } else if (fail) {
+    world.req = null;
+    if (R.type === 'sick') { R.p.sat = Math.max(0, R.p.sat - 35); annoy(9); UI.toast(`Trop tard : <b>${R.p.name}</b> a vomi par la fenêtre. Tout le monde râle.`, 'bad', 3600); }
+    else if (R.type === 'pause') { annoy(10); UI.toast('Pas de pause : les passagers ronchonnent.', 'bad', 3000); }
+    else { R.p.sat = Math.max(0, R.p.sat - 22); UI.toast(`<b>${R.p.name}</b> : « Je t’avais dit doucement ! »`, 'bad', 3000); }
+    sound.fail();
+  } else {
+    const Q = REQS[R.type];
+    cands.push({ pr: 2, kind: 'req', text: Q.text, sub: Q.sub(R.p, R.t) });
+  }
 }
 
 /* ------------------------------------------------------------ transitions */
@@ -542,14 +744,43 @@ function hud(on) {
   }
 }
 
+// carte : étape géographique et progression dans le sens Lomé → Dapaong
+function mapPos(progress = 0) {
+  const leg = legOf(run.dir, run.stage);
+  return { stage: leg.geoIndex, progress: leg.reverse ? 1 - progress : progress, rev: leg.reverse };
+}
+
 function startTitle() {
   buildTaxi(garageCfg);
   run = newRun();
   loadStage(0);
   state = 'title';
   hud(false);
-  UI.renderTitle({ best: loadBest(), vehicle: VEHICLES[garageCfg.model].name, onStart: () => { sound.init(); openGare(); }, onGarage: openGarage });
+  const saved = loadRun();
+  UI.renderTitle({
+    best: loadBest(), career, vehicle: VEHICLES[garageCfg.model].name,
+    saved: saved && { label: savedLabel(saved), onResume: () => { sound.init(); resumeRun(saved); } },
+    onStart: () => { sound.init(); clearRun(); openGare(); },
+    onGarage: openGarage,
+  });
   UI.show('s-title');
+}
+function savedLabel(o) {
+  const c = CITIES[cityAt(o.dir, o.stage)].name;
+  return `${o.dir > 0 ? 'Aller' : 'Retour'} · étape ${o.stage + 1}/${LEGS} · gare de ${c} · ${fmtMoney(o.money)}`;
+}
+// reprise d'un voyage sauvegardé : on revient à la gare de l'étape en cours
+function resumeRun(o) {
+  garageCfg = { ...garageCfg, ...o.cfg };
+  buildTaxi(garageCfg);
+  run = newRun();
+  Object.assign(run, o);
+  delete run.offers; delete run.v; delete run.t;
+  run.vehicle = vehicleSpec(run.cfg.model, career.up);
+  run.rng = mulberry32((run.seed ^ (run.legs * 7919 + run.stage * 131 + 17)) >>> 0);
+  bumpPid(Math.max(0, ...run.passengers.map((p) => p.id), ...(o.offers || []).map((p) => p.id)));
+  loadStage(run.stage);
+  openGare(o.offers);
 }
 
 function openGarage() {
@@ -557,8 +788,18 @@ function openGarage() {
   state = 'garage';
   let draft = { ...garageCfg };
   const render = () => UI.renderGarage({
-    cfg: draft,
+    cfg: draft, career, upgrades: UPGRADES,
     onChange: (c) => { draft = c; buildTaxi(draft); render(); },
+    onBuy: (id) => {
+      const U = UPGRADES.find((u) => u.id === id);
+      if (!U || career.up[id] || career.savings < U.price) return;
+      career.savings -= U.price;
+      career.up = { ...career.up, [id]: true };
+      saveCareer(career);
+      sound.coin();
+      buildTaxi(draft);
+      render();
+    },
     onSave: (c) => { garageCfg = c; saveCfg(c); sound.ok(); startTitle(); },
     onCancel: () => { buildTaxi(garageCfg); startTitle(); },
   });
@@ -566,10 +807,10 @@ function openGarage() {
   UI.show('s-garage');
 }
 
-function openGare() {
+function openGare(savedOffers) {
   state = 'gare';
-  if (!world || world.road.index !== run.stage) loadStage(run.stage);
-  offers = makeOffers(run.rng, run.stage, run.passengers);
+  if (!world || world.key !== legKey()) loadStage(run.stage);
+  offers = savedOffers || makeOffers(run.rng, cityAt(run.dir, run.stage), run.passengers, run.dir);
   hud(false);
   UI.clearToasts();
   renderGare();
@@ -577,22 +818,34 @@ function openGare() {
 }
 
 function renderGare() {
+  saveRun(run, offers);
   UI.renderGare({
-    run, offers, weather: run.weathers[run.stage],
+    run, offers, weather: run.weathers[run.stage], here: hereCity(), next: nextCity(), leg: legOf(run.dir, run.stage), map: mapPos(0),
     onToggle: (id) => {
       const o = offers.find((x) => x.id === id);
+      if (!o || o.gone) return;
       const i = run.passengers.findIndex((p) => p.id === id);
       if (i >= 0) {
         run.passengers.splice(i, 1);
         run.bags -= o.bags;
         run.money -= o.fare;
       } else if (run.passengers.length < SEATS && run.bags + o.bags <= ROOF) {
-        o.sat = 100; o.late = false;
+        o.sat = o.startSat ?? 100; o.late = false;
         run.passengers.push(o);
         run.bags += o.bags;
         run.money += o.fare;
         sound.coin();
       }
+      renderGare();
+    },
+    onHaggle: (id) => {
+      const o = offers.find((x) => x.id === id);
+      if (!o || o.haggled || o.gone || run.passengers.some((p) => p.id === id)) return;
+      const h = haggle(run.rng, o);
+      o.haggled = true;
+      o.reply = h.line;
+      if (h.ok) { o.fare = h.fare; o.startSat = h.sat; o.agreed = true; sound.coin(); }
+      else { o.gone = true; sound.fail(); }
       renderGare();
     },
     onFuel: (l, price) => { run.fuel = Math.min(TANK, run.fuel + l); run.money -= price; sound.ok(); renderGare(); },
@@ -606,20 +859,24 @@ function startDrive() {
   snapshot = JSON.stringify({ money: run.money, fuel: run.fuel, hp: run.hp, passengers: run.passengers, bags: run.bags, hour: run.hour, stats: run.stats });
   state = 'drive';
   paused = false;
+  radio.pause(false);
   run.stageTime = 0;
   run.stageLog = [];
   player.reset(16, 1.9);
   world.traffic.clearAll();
   world.vendors.reset();
   world.walkers.reset();
+  world.roadside.reset();
   UI.show(null);
   hud(true);
   UI.clearToasts();
-  const from = CITIES[run.stage].name, to = CITIES[run.stage + 1].name;
-  UI.banner(`Étape ${run.stage + 1} sur ${STAGES.length}`, `${from} → ${to}`, `${STAGES[run.stage].km} km de N1 · ${WEATHER_LABEL[world.weather]}`, 3000);
-  if (run.stage === 0) {
+  const leg = legOf(run.dir, run.stage);
+  UI.banner(`${run.dir > 0 ? 'Aller' : 'Retour'} · étape ${run.stage + 1} sur ${LEGS}`, `${hereCity().name} → ${nextCity().name}`, `${leg.km} km de N1 · ${WEATHER_LABEL[world.weather]}`, 3000);
+  if (run.stage === 0 && run.dir > 0) {
     setTimeout(() => state === 'drive' && UI.toast(isTouch ? 'Astuce : le bouton Klaxon fait ranger les camions à droite.' : 'Astuce : <b>Espace</b> pour klaxonner, le camion devant toi se range à droite.', 'info', 4200), 3500);
   }
+  const towns = run.passengers.filter((p) => p.town && p.leg === run.stage);
+  if (towns.length) setTimeout(() => state === 'drive' && UI.toast(`Descentes en route : ${towns.map((p) => `<b>${p.name}</b> à ${p.town}`).join(', ')}. Arrête-toi sur le bas-côté droit.`, 'info', 4600), 6800);
   sound.rain(world.weather === 'rain');
   hudTimer = 0;
 }
@@ -636,51 +893,66 @@ function arrive() {
   state = 'arrival';
   sound.silence();
   hud(false);
-  const ci = run.stage + 1;
+  const ci = cityAt(run.dir, run.stage + 1);
   const city = CITIES[ci];
-  const par = STAGES[run.stage].length / 19;
+  const par = world.road.length / RUSH_SPEED;
   for (const p of run.passengers) if (TRAITS[p.trait].rush && run.stageTime > par) p.late = true;
   const lines = [...run.stageLog];
   let tipsTotal = 0;
-  for (const p of run.passengers.filter((q) => q.to === ci)) {
-    const T = TRAITS[p.trait];
-    let tip = 0, label;
-    const e = p.female ? 'e' : '';
-    if (p.sat >= 85) { tip = round50(p.fare * 0.15 * (T.tipMul || 1)); label = `${p.name} est ravi${e} : pourboire`; }
-    else if (p.sat >= 60) { label = `${p.name} descend sans rien dire`; }
-    else if (p.sat >= 35) { tip = -round50(p.fare * 0.2); label = `${p.name} discute le prix (trajet secoué)`; }
-    else { tip = -round50(p.fare * 0.45); label = `${p.name} exige un remboursement`; }
-    lines.push({ label, amount: tip });
-    if (T.rush) {
-      if (!p.late) { const b = round50(p.fare * 0.2); lines.push({ label: `${p.name} est arrivé${e} à l’heure : bonus`, amount: b }); tip += b; }
-      else lines.push({ label: `${p.name} est arrivé${e} en retard`, amount: 0 });
-    }
-    run.money += tip;
-    tipsTotal += tip;
-    run.stats.tips += tip;
+  // passagers pour un village de l'étape restés à bord : ils ont été oubliés
+  for (const p of run.passengers.filter((q) => q.town && q.leg === run.stage)) {
+    const res = settle(p, { missed: true });
+    lines.push(...res.lines); run.money += res.total; tipsTotal += res.total; run.stats.tips += res.total; run.stats.carried++;
+  }
+  for (const p of run.passengers.filter((q) => !q.town && q.to === ci)) {
+    const res = settle(p, { late: p.late });
+    lines.push(...res.lines);
+    run.money += res.total;
+    tipsTotal += res.total;
+    run.stats.tips += res.total;
     run.stats.carried++;
   }
-  run.passengers = run.passengers.filter((p) => p.to !== ci);
+  run.passengers = run.passengers.filter((p) => !(p.to === ci && !p.town) && !(p.town && p.leg === run.stage));
   for (const p of run.passengers) p.sat = Math.min(100, p.sat + 15);
   run.bags = run.passengers.reduce((a, p) => a + p.bags, 0);
   run.hour += 0.35;
-  run.stage = ci;
+  run.stats.km = (run.stats.km || 0) + legOf(run.dir, run.stage).km;
+  run.stage++;
+  run.legs++;
   run.reached = ci;
   if (tipsTotal > 0) sound.coin();
-  const last = ci === CITIES.length - 1;
+  const last = run.stage === LEGS;
+  const canReturn = last && run.dir > 0;
+  if (!last) saveRun(run, null);
   UI.renderArrival({
-    run, city, lines, stageTime: run.stageTime, last,
+    run, city, lines, stageTime: run.stageTime, last, canReturn,
     extra: run.passengers.length ? `${run.passengers.length} passager${run.passengers.length > 1 ? 's' : ''} continue${run.passengers.length > 1 ? 'nt' : ''} le voyage.` : '',
-    onNext: last ? () => endGame(true) : openGare,
+    onNext: last ? () => endGame(true) : () => openGare(),
+    onReturn: canReturn ? startReturn : null,
   });
   UI.show('s-arrival');
+}
+
+// à Dapaong : on repart vers Lomé avec la caisse, le taxi et l'heure du jour
+function startReturn() {
+  run.dir = -1;
+  run.stage = 0;
+  run.weathers = legWeathers(run.rng, -1);
+  // une nuit à Dapaong : départ le lendemain vers 6 h 30
+  run.hour = Math.ceil((run.hour + 6 - 6.6) / 24) * 24 + 6.6;
+  run.passengers = [];
+  run.bags = 0;
+  UI.toast('Une nuit à Dapaong, puis cap au sud : la gare se remplit pour Lomé.', 'info', 3600);
+  loadStage(0);
+  openGare();
 }
 
 function openRescue() {
   state = 'rescue';
   sound.silence();
+  const pax = run.passengers.length;
   UI.renderRescue({
-    money: run.money,
+    money: run.money, pax,
     onPay: () => {
       run.money -= PRICES.rescue;
       run.fuel += PRICES.rescueLiters;
@@ -688,9 +960,25 @@ function openRescue() {
       UI.modal('s-modal', false);
       state = 'drive';
     },
+    // sans argent : les passagers se cotisent (et le font sentir), ou le zém fait crédit
+    onChipIn: () => {
+      run.fuel += PRICES.rescueLiters;
+      annoy(28);
+      log('Les passagers se cotisent pour l’essence', 0);
+      UI.modal('s-modal', false);
+      UI.toast('Les passagers se cotisent pour l’essence… mais ils ne sont pas contents.', 'warn', 3600);
+      state = 'drive';
+    },
+    onCredit: () => {
+      run.money -= PRICES.rescue + 1000;
+      run.fuel += PRICES.rescueLiters;
+      log('Essence du zémidjan à crédit', -(PRICES.rescue + 1000));
+      UI.modal('s-modal', false);
+      state = 'drive';
+    },
     onGiveUp: () => {
       UI.modal('s-modal', false);
-      endGame(false, { title: 'Panne sèche', text: `Le taxi s’arrête au bord de la N1, entre ${CITIES[run.stage].name} et ${CITIES[run.stage + 1].name}.` });
+      endGame(false, { title: 'Panne sèche', text: `Le taxi s’arrête au bord de la N1, entre ${hereCity().name} et ${nextCity().name}.` });
     },
   });
   UI.modal('s-modal', true);
@@ -702,11 +990,12 @@ function setPause(on) {
   if (on) {
     input.releaseAll();
     sound.silence();
+    const mp = mapPos(player.s / world.road.length);
     UI.renderPause({
-      stage: run.stage, progress: player.s / world.road.length,
+      ...mp,
       onResume: () => setPause(false),
       onRestart: restartStage,
-      onQuit: () => { UI.modal('s-pause', false); paused = false; endGame(false, { title: 'Voyage abandonné', text: `Tu as garé le taxi à ${CITIES[run.reached].name}.` }); },
+      onQuit: () => { UI.modal('s-pause', false); paused = false; radio.pause(false); endGame(false, { title: 'Voyage abandonné', text: `Tu as garé le taxi à ${CITIES[run.reached].name}.` }); },
     });
   } else if (world.weather === 'rain') sound.rain(true);
   radio.pause(on);
@@ -714,8 +1003,13 @@ function setPause(on) {
 }
 
 /* ------------------------------------------------------------ fin de partie, record, partage */
+// record : nombre d'étapes bouclées (aller puis retour), puis argent en caisse
 function loadBest() {
-  try { return JSON.parse(localStorage.getItem('n1.best') || 'null'); } catch { return null; }
+  try {
+    const b = JSON.parse(localStorage.getItem('n1.best') || 'null');
+    if (b && b.legs == null && b.reached != null) b.legs = b.reached;
+    return b;
+  } catch { return null; }
 }
 function saveBest(b) {
   try { localStorage.setItem('n1.best', JSON.stringify(b)); } catch { /* stockage indisponible */ }
@@ -727,19 +1021,37 @@ function endGame(win, reason) {
   sound.silence();
   hud(false);
   UI.clearToasts();
+  clearRun();
   if (win) sound.coin(); else sound.fail();
+  // voyage interrompu : les passagers encore à bord sont remboursés
+  if (!win && run.passengers.length) {
+    const back = run.passengers.reduce((acc, p) => acc + p.fare, 0);
+    run.money -= back;
+    reason = { ...reason, text: `${reason.text} Les ${run.passengers.length} passager${run.passengers.length > 1 ? 's' : ''} encore à bord ${run.passengers.length > 1 ? 'sont remboursés' : 'est remboursé'} (${fmtMoney(back)}).` };
+    run.passengers = [];
+  }
   const best = loadBest();
-  const mine = { money: Math.round(run.money), reached: run.reached };
-  const isRecord = !best || mine.reached > best.reached || (mine.reached === best.reached && mine.money > best.money);
+  const mine = { money: Math.round(run.money), reached: run.reached, legs: run.legs };
+  const isRecord = !best || mine.legs > best.legs || (mine.legs === best.legs && mine.money > best.money);
   if (isRecord) saveBest(mine);
+  // carrière : le bénéfice (au-delà de l'avance du patron) va à l'épargne du chauffeur
+  const profit = Math.max(0, Math.round(run.money) - START_CASH);
+  career.savings += profit;
+  career.earned += profit;
+  career.km += Math.round(run.stats.km || 0);
+  if (win) { career.trips++; if (run.dir < 0) career.returns++; }
+  saveCareer(career);
+  const roundTrip = win && run.dir < 0;
   UI.renderEnd({
-    win, reason, run, best: isRecord ? mine : best, isRecord,
+    win, roundTrip, reason, run, best: isRecord ? mine : best, isRecord, profit, career,
     onRestart: startTitle,
     onShare: async () => {
       const url = location.origin + location.pathname;
-      const text = win
-        ? `J’ai relié Lomé à Dapaong en taxi-brousse sur Route N1 avec ${fmtMoney(run.money)} en caisse. Tu fais mieux ?`
-        : `Mon taxi-brousse s’est arrêté à ${CITIES[run.reached].name} sur Route N1 (${fmtMoney(run.money)} en caisse). Tu fais mieux ?`;
+      const text = roundTrip
+        ? `J’ai fait Lomé → Dapaong → Lomé en taxi-brousse sur Route N1 avec ${fmtMoney(run.money)} en caisse. Tu fais mieux ?`
+        : win
+          ? `J’ai relié Lomé à Dapaong en taxi-brousse sur Route N1 avec ${fmtMoney(run.money)} en caisse. Tu fais mieux ?`
+          : `Mon taxi-brousse s’est arrêté à ${CITIES[run.reached].name} sur Route N1 (${fmtMoney(run.money)} en caisse). Tu fais mieux ?`;
       try {
         if (navigator.share) { await navigator.share({ title: 'Route N1', text, url }); return 'Merci pour le partage !'; }
         await navigator.clipboard.writeText(`${text} ${url}`);
@@ -752,7 +1064,7 @@ function endGame(win, reason) {
 
 /* ------------------------------------------------------------ clavier global */
 input.on('Enter', () => {
-  const btn = { title: '#t-start', gare: '#g-go', arrival: '#a-next', end: '#e-restart', garage: '#g-save' }[state];
+  const btn = { title: document.querySelector('#t-resume') ? '#t-resume' : '#t-start', gare: '#g-go', arrival: '#a-next', end: '#e-restart', garage: '#g-save' }[state];
   if (btn && !document.querySelector('.screen.modal.on')) document.querySelector(btn)?.click();
 });
 input.on('KeyP', () => setPause(!paused));
@@ -908,7 +1220,8 @@ function adaptResolution(dt) {
 function hudData() {
   const L = world.road.length;
   return {
-    stage: run.stage, kmLeft: STAGES[run.stage].km * (1 - clamp(player.s / L, 0, 1)),
+    stage: run.stage, dir: run.dir, from: hereCity().name, to: nextCity().name, map: mapPos(clamp(player.s / L, 0, 1)),
+    kmLeft: world.road.stage.km * (1 - clamp(player.s / L, 0, 1)),
     stageProgress: player.s / L, money: run.money, hour: run.hour, speed: player.v,
     fuel: run.fuel, hp: run.hp, comfort: comfort(), pax: run.passengers.length,
     weatherLabel: WEATHER_LABEL[world.weather],
@@ -932,7 +1245,7 @@ function frame(now) {
     updateDrive(dt);
     hudTimer -= dt;
     if (hudTimer <= 0 && state === 'drive') { UI.updateHud(hudData()); hudTimer = 0.1; }
-    if (state === 'drive') UI.updateMiniMap(dt, run.stage, player.s / world.road.length);
+    if (state === 'drive') UI.updateMiniMap(dt, mapPos(clamp(player.s / world.road.length, 0, 1)));
   } else if (!paused && state !== 'rescue') {
     world.traffic.update(dt, player, false, false);
   }
@@ -956,4 +1269,5 @@ setTimeout(UI.loaded, 2500);
 
 // accès de débogage pour les tests manuels
 window.__n1 = { set freeCam(v) { freeCam = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
-  goto: (i, weather) => { run.stage = i; run.reached = i; if (weather) run.weathers[i] = weather; openGare(); } };
+  goto: (i, weather, dir = 1) => { run.dir = dir; run.stage = i; run.reached = cityAt(dir, i); run.legs = i + (dir < 0 ? LEGS : 0); if (weather) run.weathers[i] = weather; openGare(); },
+  get career() { return career; }, startReturn: () => startReturn(), heat: (v) => { world.heat = v; }, flat: () => startFlat() };
