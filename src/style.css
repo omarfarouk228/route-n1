@@ -532,3 +532,30 @@ body.touch #hud.has-alert #toasts { transform: translate(-50%, 64px); }
 .h-alert.hail { border-color: rgba(255,255,255,.3); }
 .h-alert.hail .h-al-dot { background: #fff; box-shadow: 0 0 10px #fff; }
 @keyframes blink { 50% { opacity: .25; } }
+
+/* bulles de paroles au-dessus des passants et des enfants */
+#bubbles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.bubble { position: absolute; left: 0; top: 0; max-width: 180px; padding: 6px 10px; border-radius: 10px; background: #fffdf6; color: #1b1a17;
+  font: 700 13px/1.2 var(--text-f); box-shadow: 0 4px 14px rgba(0,0,0,.3); white-space: nowrap; transition: opacity .2s; }
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fffdf6; }
+body.touch .bubble { font-size: 11.5px; padding: 5px 8px; }
+
+/* cinématique entre deux étapes */
+#s-cine { background: radial-gradient(120% 90% at 30% 40%, #18271d 0%, #0c110e 70%); display: none; align-items: center; justify-content: center; gap: clamp(20px, 5vw, 70px); padding: 24px; }
+#s-cine.on { display: flex; animation: cineIn .5s ease-out; }
+#s-cine.out { opacity: 0; transition: opacity .35s; }
+.cine-map { border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); flex: none; }
+.cine-txt { max-width: 460px; }
+.cine-txt .eyebrow { animation: rise .6s .3s both; }
+.cine-from { margin-top: 14px; font: italic 800 18px/1 var(--display); font-stretch: 85%; color: var(--muted); text-transform: uppercase; animation: rise .6s .9s both; }
+.cine-txt h2 { margin: 6px 0 8px; font: italic 900 clamp(48px, 9vw, 104px)/0.9 var(--display); font-stretch: 75%; text-transform: uppercase; color: #fff; animation: rise .7s 1.6s both; }
+.cine-reg { font-size: 15px; color: var(--yellow); animation: rise .6s 2.2s both; }
+.cine-reg b { color: #fff; }
+.cine-txt p { margin: 16px 0 0; font-size: 16px; line-height: 1.5; color: #d9d4c6; animation: rise .7s 2.8s both; }
+.cine-skip { position: absolute; right: calc(18px + var(--safe-r)); bottom: calc(18px + var(--safe-b)); border: 1px solid var(--line-2); background: rgba(255,255,255,.08); color: var(--text); border-radius: 99px; padding: 8px 14px; font: 700 13px/1 var(--text-f); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes cineIn { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 760px) {
+  #s-cine.on { flex-direction: column; justify-content: center; gap: 16px; text-align: center; }
+  .cine-txt p { font-size: 14px; }
+}

@@ -486,7 +486,7 @@ export function radioUI() {
       $('#r-note').textContent = !station ? ''
         : muted ? 'Son coupé (touche M).'
         : status === 'blocked' ? 'Appuie sur ▶ pour lancer la musique.'
-        : status === 'broken' ? 'Aucun fichier lisible sur cette station.'
+        : status === 'broken' ? (navigator.onLine === false ? 'Hors ligne : seule N1 Groove fonctionne sans réseau.' : 'Aucun fichier lisible sur cette station.')
         : file ? '' : 'Musique originale, générée en direct.';
       requestAnimationFrame(fitTop);
     },
@@ -502,4 +502,49 @@ export function updateMiniMap(dt, pos) {
   const c = $('#minimap');
   if (!c || c.offsetParent === null) return;
   drawMiniMap(c, { size: document.body.classList.contains('touch') ? 112 : 156, ...pos });
+}
+
+/* ------------------------------------------------------------ cinématique entre deux étapes */
+// la carte de la N1 se trace jusqu'à la ville d'arrivée, puis la ville se présente
+export const CITY_NOTES = {
+  'Lomé': 'Capitale du Togo, au bord du golfe de Guinée : le Grand marché d’Adawlato, le port, et la gare d’Agbalépédo où tout a commencé.',
+  'Tsévié': 'Chef-lieu de la préfecture du Zio, à une trentaine de kilomètres de Lomé. Première vraie halte de la N1.',
+  'Atakpamé': 'Ville bâtie sur les collines, chef-lieu de la région des Plateaux. Ici la route commence à grimper.',
+  'Sokodé': 'Deuxième ville du pays, chef-lieu de la région Centrale, ville de la fête des couteaux (Adossa).',
+  'Kara': 'Chef-lieu de la région de la Kara, au pied des monts kabyè. En juillet, les luttes de l’Evala.',
+  'Mango': 'Sur la rive de l’Oti, à l’entrée du parc national de l’Oti-Kéran. Le Sahel n’est plus loin.',
+  'Dapaong': 'Chef-lieu des Savanes, tout près du Burkina Faso. Non loin, les grottes de Nok dans les falaises.',
+};
+export function playCine({ city, region, fromName, hour, dayN, km, stageN, legs, dir, map }) {
+  const el = $('#s-cine');
+  el.innerHTML = `
+    <canvas class="cine-map"></canvas>
+    <div class="cine-txt">
+      <div class="eyebrow">Jour ${dayN} · ${fmtClock(hour)} · ${dir > 0 ? 'aller' : 'retour'}, étape ${stageN}/${legs} bouclée</div>
+      <div class="cine-from">${esc(fromName)} →</div>
+      <h2>${esc(city)}</h2>
+      <div class="cine-reg">${region ? `Région ${esc(region === 'Kara' ? 'de la Kara' : region === 'Savanes' ? 'des Savanes' : region === 'Plateaux' ? 'des Plateaux' : region === 'Centrale' ? 'Centrale' : region === 'Maritime' ? 'Maritime' : region)}` : ''} · <b>${Math.round(km)} km</b> de N1 parcourus</div>
+      <p>${esc(CITY_NOTES[city] || '')}</p>
+    </div>
+    <button class="cine-skip" id="c-skip">Passer <span class="kbd">Entrée</span></button>`;
+  show('s-cine');
+  const cv = el.querySelector('.cine-map');
+  const H = Math.min(innerHeight * 0.86, 720), W = Math.round(H * 0.46);
+  const narrow = innerWidth < 760;
+  const w = narrow ? Math.min(innerWidth - 32, 260) : W, h = narrow ? Math.round(w / 0.46 * 0.62) : H;
+  return new Promise((resolve) => {
+    let t = 0, last = performance.now(), done = false;
+    const finish = () => { if (done) return; done = true; el.classList.add('out'); setTimeout(() => { el.classList.remove('out'); resolve(); }, 350); };
+    el.querySelector('#c-skip').onclick = finish;
+    el.onclick = (e) => { if (e.target === el || e.target === cv) finish(); };
+    const tick = (now) => {
+      if (done) return;
+      t += Math.min(0.05, (now - last) / 1000); last = now;
+      const k = Math.min(1, t / 2.6), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const p = map.rev ? 1 - e : e;
+      drawFullMap(cv, { w, h, stage: map.stage, progress: p, rev: map.rev, showNeighbors: !narrow, dark: true });
+      if (t > 6.2) finish(); else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
 }

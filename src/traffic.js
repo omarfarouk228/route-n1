@@ -47,6 +47,18 @@ export class Traffic {
         rider.position.z = -0.15;
         rider.castShadow = this.shadows;
         mesh.add(rider);
+        // zémidjans chargés comme sur la vraie route : bidons, sacs, charbon, bananes ou un deuxième passager
+        const load = pick(Math.random, ['bidons', 'sacs', 'charbon', 'bananes', 'passager', 'passager', null, null]);
+        if (load === 'passager') {
+          const p2 = new THREE.Mesh(riderGeo(pick(Math.random, SHIRTS)), CHAR_MAT);
+          p2.position.set(0, 0.05, -0.55);
+          p2.castShadow = this.shadows;
+          mesh.add(p2);
+        } else if (load) {
+          const lm = new THREE.Mesh(M.motoLoad(load), MAT);
+          lm.castShadow = this.shadows;
+          mesh.add(lm);
+        }
       }
     }
     mesh.visible = true;

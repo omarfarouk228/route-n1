@@ -863,3 +863,31 @@ export function branches() {
   }
   return merge(parts);
 }
+
+// chargements de zémidjan : bidons jaunes, sacs de maïs, charbon, régimes de bananes (porte-bagages arrière et flancs)
+const LOADS = new Map();
+export function motoLoad(kind) {
+  if (LOADS.has(kind)) return LOADS.get(kind);
+  const p = [];
+  if (kind === 'bidons') {
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) p.push(box(0.17, 0.27, 0.24, j ? '#e8c22a' : '#d9ad1c', { x: (i - 0.5) * 0.19, y: 1.0 + j * 0.28, z: -0.68 }));
+    for (const sd of [1, -1]) for (let k = 0; k < 2; k++) p.push(box(0.16, 0.26, 0.22, '#e8c22a', { x: sd * 0.32, y: 0.62, z: -0.42 - k * 0.25 }));
+  } else if (kind === 'sacs') {
+    p.push(box(0.78, 0.3, 0.46, '#e9e2cf', { y: 1.02, z: -0.66 }));
+    p.push(box(0.12, 0.31, 0.47, '#2f8a4a', { y: 1.02, z: -0.66 }));
+    p.push(box(0.66, 0.28, 0.42, '#d8cbb0', { y: 1.3, z: -0.68 }));
+  } else if (kind === 'charbon') {
+    for (let k = 0; k < 3; k++) p.push(box(0.6 - k * 0.08, 0.26, 0.42, k % 2 ? '#2b2724' : '#3a332c', { y: 1.0 + k * 0.25, z: -0.68, ry: k * 0.15 }));
+    for (const sd of [1, -1]) p.push(box(0.2, 0.42, 0.36, '#2b2724', { x: sd * 0.34, y: 0.66, z: -0.5 }));
+  } else if (kind === 'bananes') {
+    for (const sd of [1, -1]) for (let k = 0; k < 2; k++) {
+      p.push(cyl(0.04, 0.04, 0.5, 5, '#7a6a3a', { x: sd * 0.34, y: 0.72, z: -0.4 - k * 0.3 }));
+      p.push(ico(0.2, k ? '#5d8f34' : '#6fa03c', { x: sd * 0.36, y: 0.66, z: -0.4 - k * 0.3, sy: 1.5 }));
+    }
+    p.push(ico(0.26, '#6fa03c', { y: 1.05, z: -0.66, sy: 1.3 }));
+  }
+  const g = merge(p);
+  g.userData.shared = true;
+  LOADS.set(kind, g);
+  return g;
+}

@@ -40,6 +40,11 @@ Ce n'est pas une course : c'est un **voyage à gérer**, à l'aller puis, si tu 
 
 ## Nouveautés
 
+### v0.7
+- **Cinématique entre les étapes** : la N1 se trace sur la carte jusqu'à la ville d'arrivée, avec le jour, l'heure, les kilomètres parcourus et une présentation de la ville.
+- **Vie au bord de la route** : bandes d'enfants qui saluent le taxi et courent derrière lui, passants qui lancent un mot dans une bulle (salutations en éwé au sud, « Alafia » au nord ; orthographe simplifiée, à faire vérifier), zémidjans chargés de bidons jaunes, de sacs de maïs, de charbon, de régimes de bananes ou d'un deuxième passager.
+- **Hors ligne** : après une première visite, le jeu se lance sans réseau (service worker). La radio N1 Groove fonctionne hors ligne ; les titres en fichier demandent le réseau.
+
 ### v0.6
 - **Passagers vivants** : portraits dessinés (coiffes, foulards wax, chapeau peul, kufi), répliques au quai, marchandage du prix.
 - **Taxi-brousse réaliste** : descentes dans les villages de l'étape, voyageurs qui font signe au bord de la route, demandes des passagers pendant le trajet.
@@ -97,6 +102,8 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 | `src/radio.js` | Autoradio : station générée en direct et lecteur de fichiers audio |
 | `scripts/radio-playlist.mjs` | Génère `public/radio/playlist.json` à partir des fichiers déposés (`npm run radio`) |
 | `src/vendors.js` | Vendeuses ambulantes |
+| `src/streetlife.js` | Enfants qui saluent, passants qui parlent (bulles projetées au-dessus des personnages) |
+| `public/sw.js` | Jeu hors ligne (service worker) |
 | `src/roadside.js` | Voyageurs qui font signe au bord de la route, passagers qui descendent en route |
 | `src/rules.js` | Règles pures : règlement des passagers, marchandage (testées par `npm test`) |
 | `src/career.js` | Épargne, atelier d'améliorations, sauvegarde du voyage en cours |

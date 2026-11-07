@@ -3,6 +3,7 @@ import { CITIES, STAGES, TRAITS, PRICES, SEATS, ROOF, TANK, QUOTES, WEATHER_LABE
 import { settle, haggle, RUSH_SPEED } from './rules.js';
 import { START_CASH, loadCareer, saveCareer, vehicleSpec, UPGRADES, saveRun, loadRun, clearRun } from './career.js';
 import { Roadside } from './roadside.js';
+import { StreetLife } from './streetlife.js';
 import { Road, SHOULDER, HALF_ROAD } from './road.js';
 import { buildScenery, disposeGroup, updateLod } from './scenery.js';
 import { Traffic } from './traffic.js';
@@ -225,6 +226,7 @@ function loadStage(i) {
     world.vendors.dispose();
     world.walkers.dispose();
     world.roadside.dispose();
+    world.street.dispose();
     disposeGroup(world.group);
   }
   const leg = legOf(run.dir, i);
@@ -249,10 +251,11 @@ function loadStage(i) {
     }
   }
   const roadside = new Roadside(group, road, mulberry32(run.seed + salt + i * 977), SHADOWS);
+  const street = new StreetLife(group, road, mulberry32(run.seed + salt + i * 433), SHADOWS, document.getElementById('bubbles'));
   const vendors = new Vendors(group, SHADOWS);
   const walkers = new Walkers(group, SHADOWS, isTouch ? 5 : 9);
   scene.add(group);
-  world = { key: legKey(), road, group, traffic, vendors, walkers, roadside, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { key: legKey(), road, group, traffic, vendors, walkers, roadside, street, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
   resetLegState();
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
@@ -604,6 +607,7 @@ function updateDrive(dt) {
 
   world.walkers.update(dt, r, player, run.rng, r.biomeAt(clamp(player.s, 0, r.length)).traffic || 1);
   world.roadside.update(dt, player);
+  world.street.update(dt, player, camera, world.walkers);
 
   // trafic
   const hits = world.traffic.update(dt, player, hornNow, true);
@@ -867,6 +871,7 @@ function startDrive() {
   world.vendors.reset();
   world.walkers.reset();
   world.roadside.reset();
+  world.street.reset();
   UI.show(null);
   hud(true);
   UI.clearToasts();
@@ -917,6 +922,8 @@ function arrive() {
   run.bags = run.passengers.reduce((a, p) => a + p.bags, 0);
   run.hour += 0.35;
   run.stats.km = (run.stats.km || 0) + legOf(run.dir, run.stage).km;
+  const cineMap = mapPos(1);
+  const fromName = hereCity().name;
   run.stage++;
   run.legs++;
   run.reached = ci;
@@ -924,6 +931,14 @@ function arrive() {
   const last = run.stage === LEGS;
   const canReturn = last && run.dir > 0;
   if (!last) saveRun(run, null);
+  state = 'cine';
+  UI.playCine({
+    city: city.name, region: city.region, fromName, hour: run.hour, dayN: Math.floor((run.hour - 6) / 24) + 1,
+    km: run.stats.km, stageN: run.stage, legs: LEGS, dir: run.dir, map: cineMap,
+  }).then(() => showArrival({ city, lines, last, canReturn }));
+}
+function showArrival({ city, lines, last, canReturn }) {
+  state = 'arrival';
   UI.renderArrival({
     run, city, lines, stageTime: run.stageTime, last, canReturn,
     extra: run.passengers.length ? `${run.passengers.length} passager${run.passengers.length > 1 ? 's' : ''} continue${run.passengers.length > 1 ? 'nt' : ''} le voyage.` : '',
@@ -1062,9 +1077,10 @@ function endGame(win, reason) {
   UI.show('s-end');
 }
 
+const canReturnBtn = () => !!document.querySelector('#a-return');
 /* ------------------------------------------------------------ clavier global */
 input.on('Enter', () => {
-  const btn = { title: document.querySelector('#t-resume') ? '#t-resume' : '#t-start', gare: '#g-go', arrival: '#a-next', end: '#e-restart', garage: '#g-save' }[state];
+  const btn = { title: document.querySelector('#t-resume') ? '#t-resume' : '#t-start', gare: '#g-go', arrival: canReturnBtn() ? '#a-return' : '#a-next', end: '#e-restart', garage: '#g-save', cine: '#c-skip' }[state];
   if (btn && !document.querySelector('.screen.modal.on')) document.querySelector(btn)?.click();
 });
 input.on('KeyP', () => setPause(!paused));
@@ -1266,6 +1282,14 @@ startTitle();
 requestAnimationFrame(frame);
 document.fonts?.ready.then(() => setTimeout(UI.loaded, 150));
 setTimeout(UI.loaded, 2500);
+
+// jeu hors ligne (version publiée seulement) : la page signale au service worker ce qu'elle a chargé
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  navigator.serviceWorker.register('./sw.js').then(() => navigator.serviceWorker.ready).then((reg) => {
+    const urls = [location.href, ...performance.getEntriesByType('resource').map((e) => e.name)];
+    reg.active?.postMessage({ cache: urls });
+  }).catch(() => { /* pas de cache hors ligne */ });
+}
 
 // accès de débogage pour les tests manuels
 window.__n1 = { set freeCam(v) { freeCam = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
