@@ -152,8 +152,10 @@ const showroom = new THREE.Group();
 }
 
 const post = isTouch ? null : makeComposer(renderer, scene, camera);
+let fixedSize = null; // débogage : taille d'image fixe (enregistrement de vidéos)
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const [w, h] = fixedSize || [window.innerWidth, window.innerHeight];
+  if (fixedSize) renderer.setPixelRatio(1);
   renderer.setSize(w, h, false);
   post?.setSize(w, h, renderer.getPixelRatio());
   camera.aspect = w / h;
@@ -1294,7 +1296,7 @@ let lastDt = 0.016;
 const perf = { t: 0, frames: 0 };
 function adaptResolution(dt) {
   perf.t += dt; perf.frames++;
-  if (perf.t < 2) return;
+  if (perf.t < 2 || fixedSize) return;
   const fps = perf.frames / perf.t;
   perf.t = 0; perf.frames = 0;
   let next = pixelRatio;
@@ -1380,6 +1382,6 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 }
 
 // accès de débogage pour les tests manuels
-window.__n1 = { set freeCam(v) { freeCam = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
+window.__n1 = { set freeCam(v) { freeCam = v; }, fixSize: (v) => { fixedSize = v; if (!v) renderer.setPixelRatio(pixelRatio); resize(); }, sound, set camMode(v) { camMode = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
   goto: (i, weather, dir = 1) => { run.dir = dir; run.stage = i; run.reached = cityAt(dir, i); run.legs = i + (dir < 0 ? LEGS : 0); if (weather) run.weathers[i] = weather; openGare(); },
   get career() { return career; }, startReturn: () => startReturn(), heat: (v) => { world.heat = v; }, flat: () => startFlat() };
