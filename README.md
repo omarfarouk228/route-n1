@@ -40,6 +40,17 @@ Ce n'est pas une course : c'est un **voyage à gérer**, à l'aller puis, si tu 
 
 ## Nouveautés
 
+### v0.8 : les vraies traversées de villes
+Chaque ville suit un plan relevé sur OpenStreetMap (novembre 2026) et dans la presse togolaise (`src/cities.js`) : repères dans l'ordre réel du sud au nord et du bon côté de la route.
+- **Lomé** : boulevard Gnassingbé Eyadéma en 2x2 voies avec terre-plein jusqu'au péage de Davié, feux tricolores (GTA, Agoè-Nyivé, Agoè Zongo) avec passages piétons, stations Total, MRS, T-Oil, Sanol, gares CTK, LK, Zam Zam, mairies d'Agoè-Nyivé et de Togblékopé, marchés d'Agoè Zongo et d'Adétikopé, marché à bétail, pont sur le Zio, Hôtel Le Péage.
+- **Tsévié** : commissariat et gendarmerie face à face, les deux Total presque face à face, grand marché, station de zémidjans, hôtel de ville. **Notsé** : mur d'Agbogbodzi, pavements de Dakpodji, église Sts Pierre et Paul.
+- **Atakpamé** : la N1 longe le pied des collines par Agbonou (collines à gauche en allant vers le nord), marché d'Agbonou, stations CAP et Oando.
+- **Sokodé** : rond-point central, grand marché, mosquée Yéyé-Dji'ngri, cathédrale, grande mosquée de Kpangalam. **Alédjo** juste après la faille, puis **Bafilo**.
+- **Kara** : pont sur la Kara, rond-point du carrefour Tomdè, gares Kara-Sud, Nagodé, LK. **Kantè** et **Mango** (rond-point du Monument de la Paix, mosquées) avec leurs ronds-points. **Dapaong** : chaussées séparées, gares LK et Stisali.
+- Bâti : R+1 et R+2 crépis, maisons inachevées avec les fers en attente, boutiques-conteneurs, panneaux publicitaires sur portique, caniveaux ouverts, lampadaires solaires ; au centre et au nord, rez-de-chaussée ocre et blancs. Les petites villes restent surtout de plain-pied.
+- Nouveaux ponts nommés : Zio, Amou, Anié, Mô, Kara, Koumongou.
+- Approximations : les distances sont compressées comme tout le trajet ; les monuments de rond-point de Kara, Kantè et Dapaong sont génériques (pas de source) ; les enseignes de stations portent le nom de la marque sans logo, avec des couleurs approchées.
+
 ### v0.7
 - **Cinématique entre les étapes** : la N1 se trace sur la carte jusqu'à la ville d'arrivée, avec le jour, l'heure, les kilomètres parcourus et une présentation de la ville.
 - **Vie au bord de la route** : bandes d'enfants qui saluent le taxi et courent derrière lui, passants qui lancent un mot dans une bulle (salutations en éwé au sud, « Alafia » au nord ; orthographe simplifiée, à faire vérifier), zémidjans chargés de bidons jaunes, de sacs de maïs, de charbon, de régimes de bananes ou d'un deuxième passager.
@@ -102,6 +113,7 @@ Chaque push sur `main` est déployé automatiquement sur GitHub Pages (`.github/
 | `src/radio.js` | Autoradio : station générée en direct et lecteur de fichiers audio |
 | `scripts/radio-playlist.mjs` | Génère `public/radio/playlist.json` à partir des fichiers déposés (`npm run radio`) |
 | `src/vendors.js` | Vendeuses ambulantes |
+| `src/cities.js` | Plans des traversées de villes (repères OSM, 2x2 voies, feux, ronds-points, collines) |
 | `src/streetlife.js` | Enfants qui saluent, passants qui parlent (bulles projetées au-dessus des personnages) |
 | `public/sw.js` | Jeu hors ligne (service worker) |
 | `src/roadside.js` | Voyageurs qui font signe au bord de la route, passagers qui descendent en route |

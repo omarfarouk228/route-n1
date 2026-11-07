@@ -407,17 +407,17 @@ export function kiosk(c = '#2f78a8') {
     box(2.4, 0.08, 0.6, '#d8cdb5', { y: 0.95, z: 1.35 }),
   ]);
 }
-export function fuelStation() {
+export function fuelStation(trim = '#c8322b') {
   const p = [
     box(14, 0.6, 9, '#f4f0e0', { y: 5.3 }),
-    box(14.05, 0.3, 9.05, '#c8322b', { y: 5.0 }),
+    box(14.05, 0.3, 9.05, trim, { y: 5.0 }),
     box(9, 3.4, 5, '#f4f0e0', { y: 1.7, z: -9 }),
-    box(9.05, 0.6, 5.05, '#c8322b', { y: 3.1, z: -9 }),
+    box(9.05, 0.6, 5.05, trim, { y: 3.1, z: -9 }),
   ];
   for (const [x, z] of [[-5, -3], [5, -3], [-5, 3], [5, 3]]) p.push(box(0.4, 5, 0.4, '#d8d8d8', { x, y: 2.5, z }));
   for (const x of [-2.5, 2.5]) {
     p.push(box(0.9, 0.3, 2.4, '#9aa0a6', { x, y: 0.15 }));
-    p.push(box(0.6, 1.7, 0.9, '#c8322b', { x, y: 1.15 }));
+    p.push(box(0.6, 1.7, 0.9, trim, { x, y: 1.15 }));
     p.push(box(0.5, 0.5, 0.92, '#f4f0e0', { x, y: 1.6 }));
   }
   return merge(p);
@@ -890,4 +890,106 @@ export function motoLoad(kind) {
   g.userData.shared = true;
   LOADS.set(kind, g);
   return g;
+}
+
+/* ---------------------------------------------------------------- mobilier et bâti des villes */
+// lampadaire solaire (panneau incliné au sommet), comme ceux posés le long de la N1 à Tsévié, Kara, dans les Savanes
+export function solarLamp() {
+  return merge([
+    cyl(0.07, 0.1, 7.5, 6, '#c9ccd0', { y: 3.75 }),
+    box(1.3, 0.05, 0.75, '#1d2a44', { y: 7.7, z: -0.1, rx: -0.35 }),
+    box(1.32, 0.03, 0.77, '#c9ccd0', { y: 7.66, z: -0.1, rx: -0.35 }),
+    box(0.08, 0.08, 1.4, '#c9ccd0', { y: 7.1, z: 0.7 }),
+    box(0.3, 0.1, 0.55, '#e9e6dc', { y: 7.05, z: 1.35 }),
+    box(0.35, 0.5, 0.25, '#9aa0a6', { y: 6.4, z: -0.1 }),
+  ]);
+}
+// feu tricolore sur potence (les lampes sont des maillages à part, allumés par le jeu)
+export function trafficPole() {
+  return merge([
+    cyl(0.09, 0.12, 5.2, 6, '#3a3d40', { y: 2.6 }),
+    box(0.1, 0.1, 3.4, '#3a3d40', { y: 5.1, z: 1.7 }),
+    box(0.42, 1.2, 0.3, '#1b1b1b', { y: 4.4, z: 3.25 }),
+    box(0.4, 1.0, 0.3, '#1b1b1b', { y: 2.6, z: 0.18 }),
+  ]);
+}
+// panneau publicitaire sur portique
+export function billboard() {
+  return merge([
+    box(0.2, 5.5, 0.2, '#6a6f74', { x: -2.4, y: 2.75 }),
+    box(0.2, 5.5, 0.2, '#6a6f74', { x: 2.4, y: 2.75 }),
+    box(6.4, 3.0, 0.15, '#8a8f94', { y: 5.5, z: -0.1 }),
+    box(6.6, 0.12, 0.6, '#5a5f64', { y: 3.95, z: 0.2 }),
+  ]);
+}
+// conteneur reconverti en boutique (porte ouverte, auvent de tôle)
+export function containerShop(color = '#2f5f9f') {
+  return merge([
+    box(6, 2.6, 2.4, color, { y: 1.3 }),
+    box(5.8, 0.12, 2.38, '#2a2a2a', { y: 2.5 }),
+    box(2.2, 2.2, 0.06, '#1b1a17', { x: -0.6, y: 1.15, z: 1.22 }),
+    box(6.4, 0.08, 1.8, '#9aa3ab', { y: 2.75, z: 1.9, rx: 0.12 }),
+    box(0.08, 2.6, 0.08, '#6b5a45', { x: 3, y: 1.3, z: 2.7 }),
+    box(0.08, 2.6, 0.08, '#6b5a45', { x: -3, y: 1.3, z: 2.7 }),
+    box(1.6, 0.8, 0.6, '#c9b48a', { x: 1.6, y: 0.4, z: 1.7 }),
+  ]);
+}
+// maison R+1 inachevée : étage en parpaings bruts, fers à béton en attente sur le toit-terrasse
+export function unfinished(wall = '#d9cbb0') {
+  const p = [
+    box(8, 3.2, 6, wall, { y: 1.6 }),
+    box(8.3, 0.3, 6.3, '#bdb3a0', { y: 3.35 }),
+    box(8, 2.6, 6, '#9a958c', { y: 4.8 }),
+    box(8.3, 0.25, 6.3, '#a8a196', { y: 6.2 }),
+  ];
+  for (let k = 0; k < 2; k++) p.push(box(2.2, 2.3, 0.08, k ? '#2f5f9f' : '#7a2230', { x: -2 + k * 4, y: 1.2, z: 3.02 }));
+  for (let k = 0; k < 3; k++) p.push(box(1.2, 1.2, 0.1, '#3a3631', { x: -2.6 + k * 2.6, y: 4.9, z: 3.0 }));
+  for (const x of [-3.9, -1.3, 1.3, 3.9]) for (const z of [-2.9, 2.9]) p.push(box(0.04, 1.1, 0.04, '#6a4a30', { x, y: 6.85, z }));
+  return merge(p);
+}
+// bâtiment de ville du nord : rez-de-chaussée crépi ocre et blanc, boutiques à volets de fer
+export function buildingNord(wall = '#d9a273') {
+  const p = [box(10, 3.6, 6, wall, { y: 1.8 }), box(10.2, 0.5, 6.2, '#f1ece0', { y: 3.75 }), box(10.6, 0.1, 2.2, '#8a96a0', { y: 2.9, z: 3.9, rx: 0.1 })];
+  for (let k = 0; k < 4; k++) p.push(box(1.8, 2.3, 0.08, ['#2f5f9f', '#0f5c3c', '#7a2230', '#3a3a3a'][k], { x: -3.6 + k * 2.4, y: 1.15, z: 3.02 }));
+  for (const x of [-5, 5]) p.push(box(0.2, 2.9, 0.2, '#6b5a45', { x, y: 1.45, z: 4.9 }));
+  return merge(p);
+}
+// petit bâtiment administratif (mairie, commissariat, gendarmerie, hôpital) : façade blanche, bandeau de couleur
+export function office(band = '#0f5c3c') {
+  const p = [box(12, 4, 7, '#f1ece0', { y: 2 }), box(12.3, 0.5, 7.3, band, { y: 4.1 }), box(4, 0.3, 2, '#d8cdb5', { y: 3.2, z: 4.4 })];
+  for (const x of [-1.9, 1.9]) p.push(box(0.3, 3.2, 0.3, '#d8cdb5', { x, y: 1.6, z: 5.2 }));
+  for (let k = 0; k < 4; k++) p.push(box(1.3, 1.3, 0.08, '#24384a', { x: -4.5 + k * 3, y: 2.4, z: 3.52 }));
+  p.push(box(1.6, 2.4, 0.08, '#6a4a30', { y: 1.2, z: 3.53 }));
+  p.push(box(14, 0.06, 0.06, '#c9ccd0', { y: 1.4, z: 8 }), box(0.08, 1.4, 0.08, '#c9ccd0', { x: -7, y: 0.7, z: 8 }), box(0.08, 1.4, 0.08, '#c9ccd0', { x: 7, y: 0.7, z: 8 }));
+  return merge(p);
+}
+// grand marché : hangars de tôle sur poteaux, étals dessous
+export function marketHall() {
+  const p = [];
+  for (let k = 0; k < 3; k++) {
+    const z = -6 + k * 6;
+    p.push(box(14, 0.12, 5, k % 2 ? '#9aa3ab' : '#8a96a0', { y: 3.3, z, rx: 0.06 }));
+    for (const x of [-6.5, 0, 6.5]) for (const dz of [-2.2, 2.2]) p.push(box(0.14, 3.3, 0.14, '#6b5a45', { x, y: 1.65, z: z + dz }));
+    for (let j = 0; j < 4; j++) {
+      p.push(box(2.6, 0.9, 1.2, '#8a6a45', { x: -5 + j * 3.4, y: 0.45, z }));
+      p.push(ico(0.32, ['#e3a21a', '#d2452a', '#62a12e', '#e9d9b0'][j], { x: -5.3 + j * 3.4, y: 1.05, z }));
+      p.push(box(0.6, 0.35, 0.5, ['#2f78a8', '#c8322b', '#f4c430', '#0f7a4a'][(j + k) % 4], { x: -4.4 + j * 3.4, y: 1.08, z }));
+    }
+  }
+  return merge(p);
+}
+export function parasol(c = '#c8322b') {
+  return merge([cyl(0.04, 0.04, 2.3, 5, '#d9d4c6', { y: 1.15 }), cone(1.4, 0.55, 8, c, { y: 2.45 }), box(1.2, 0.7, 0.8, '#8a6a45', { y: 0.35 })]);
+}
+// mur historique en terre (Agbogbodzi, Notsé) : tronçons érodés
+export function earthWall() {
+  const p = [];
+  for (let k = 0; k < 6; k++) p.push(box(2.6, 1.2 + (k % 3) * 0.45, 0.9, k % 2 ? '#9a5a36' : '#a8653e', { x: -7 + k * 2.8, y: (1.2 + (k % 3) * 0.45) / 2 }));
+  return merge(p);
+}
+// monuments de rond-point
+export function monument(kind) {
+  if (kind === 'colonne') return merge([box(2.2, 0.6, 2.2, '#e9e6dc', { y: 0.3 }), box(1.1, 6.5, 1.1, '#f1ece0', { y: 3.85 }), box(1.14, 0.5, 1.14, '#0f7a4a', { y: 5.2 }), box(1.14, 0.5, 1.14, '#f4c430', { y: 5.7 }), box(1.14, 0.5, 1.14, '#c8322b', { y: 6.2 }), cone(0.8, 1.2, 4, '#e9e6dc', { y: 7.7, ry: PI / 4 })]);
+  if (kind === 'paix') return merge([box(2.6, 0.7, 2.6, '#e9e6dc', { y: 0.35 }), cyl(0.5, 0.7, 5, 8, '#f1ece0', { y: 3.2 }), ico(0.7, '#ffffff', { y: 6.1, sx: 1.6, sy: 0.8 }), box(2.6, 0.12, 0.7, '#ffffff', { y: 6.3, rz: 0.3 }), box(0.9, 0.3, 0.3, '#ffffff', { x: 1.1, y: 6.1 })]);
+  return merge([cone(1.6, 2.2, 7, '#4b7a2e', { y: 1.1 }), cyl(0.15, 0.2, 4, 5, '#6b5a45', { x: -2.4, y: 2 }), ico(1.0, '#3f6e27', { x: -2.4, y: 4.2, sy: 0.7 }), cyl(0.15, 0.2, 4, 5, '#6b5a45', { x: 2.4, y: 2 }), ico(1.0, '#3f6e27', { x: 2.4, y: 4.2, sy: 0.7 })]);
 }

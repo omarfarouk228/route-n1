@@ -42,7 +42,8 @@ export class Player {
     if (!thr && this.v > 0) F -= 150 * Math.min(this.v, 8) + 250; // frein moteur
     F -= mass * 9.81 * f.grade;
     const ax = Math.abs(this.x);
-    this.surface = ax > SHOULDER ? 2 : ax > HALF_ROAD + 0.4 ? 1 : 0;
+    const paved = road.pavedHalf ? road.pavedHalf(this.s) : HALF_ROAD + 0.4; // anneau des ronds-points
+    this.surface = ax > Math.max(SHOULDER, paved) ? 2 : ax > paved ? 1 : 0;
     if (this.surface === 1) F -= 140 * this.v;
     if (this.surface === 2) F -= 520 * this.v;
     let a = F / mass;
@@ -69,8 +70,9 @@ export class Player {
     this.x += this.v * Math.sin(this.yaw) * dt;
 
     // murs (falaise de la faille ou limite du monde)
-    const lim = road.wallLimit(this.s);
+    const lim = road.wallLimit(this.s, Math.sign(this.x));
     if (Math.abs(this.x) > lim) {
+      if (lim < 5) ev.median = true;
       this.x = Math.sign(this.x) * lim;
       if (Math.abs(this.v) > 3) ev.wall = Math.abs(this.v);
       this.v *= 0.45;

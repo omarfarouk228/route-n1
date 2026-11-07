@@ -255,7 +255,7 @@ function loadStage(i) {
   const vendors = new Vendors(group, SHADOWS);
   const walkers = new Walkers(group, SHADOWS, isTouch ? 5 : 9);
   scene.add(group);
-  world = { key: legKey(), road, group, traffic, vendors, walkers, roadside, street, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
+  world = { key: legKey(), road, group, traffic, vendors, walkers, roadside, street, lights: scen.lights, extras: scen.extras, extrasT: 0, lod: scen.lod, checkpoints: scen.checkpoints, tolls: scen.tolls, potIdx: 0, noteIdx: 0, bumpIdx: 0, weather: run.weathers[i], fuelling: false, fuelLiters: 0, fuelWarned: false };
   resetLegState();
   player.reset(16, 1.9);
   rain.group.visible = world.weather === 'rain';
@@ -397,7 +397,39 @@ function updateDrive(dt) {
   else if (ev.surface === 1 && speed > 9) annoy(dt * 0.8);
   if (ev.wall) {
     damage(3 + ev.wall * 0.6); annoy(8); player.kick(2); sound.crash();
-    UI.toast('Aïe, la paroi rocheuse !', 'bad');
+    UI.toast(ev.median ? 'Bam ! Le terre-plein central du boulevard.' : 'Aïe, la paroi rocheuse !', 'bad');
+  }
+  // rond-point : la bordure guide le taxi autour du terre-plein ; trop vite, on tape la bordure
+  {
+    const ahead = Math.max(r.islandW(player.s), r.islandW(player.s + 2.5), r.islandW(player.s + 5));
+    if (ahead) {
+      const side = player.x >= 0 ? 1 : -1;
+      const need = ahead + 0.95;
+      if (Math.abs(player.x) < need) {
+        if (speed > 13 && !world.ringHit) {
+          world.ringHit = true;
+          damage(2 + speed * 0.4); annoy(10); player.kick(2.2); sound.crash(0.5);
+          UI.toast(`Rond-point pris à ${Math.round(speed * 3.6)} km/h : tu as tapé la bordure !`, 'bad', 2800);
+          player.v *= 0.55;
+        }
+        player.x += (side * need - player.x) * Math.min(1, dt * 4);
+        if (speed > 9) annoy(dt * 6);
+      }
+    } else world.ringHit = false;
+  }
+  // feux tricolores : on s'arrête au rouge (un agent verbalise parfois)
+  for (const l of r.lights) {
+    const st = r.lightState(l, world.traffic.time || 0);
+    const d = l.s - 3 - (player.len || 4.5) / 2 - player.s;
+    if (d > 0 && d < 120 && st > 0) cands.push({ pr: 2.6, kind: st === 2 ? 'police' : 'warn', text: st === 2 ? 'Feu rouge' : 'Feu orange', sub: `Arrête-toi avant la ligne · ${Math.round(d)} m` });
+    if (!l.ran && d < 0 && d > -3 && speed > 1.5) {
+      l.ran = true;
+      if (st === 2) {
+        annoy(6);
+        if (Math.random() < 0.45) { run.money -= PRICES.fine; stats().fines++; log('Feu rouge grillé (amende)', -PRICES.fine); sound.whistle(); UI.toast(`Coup de sifflet : feu rouge grillé ! Amende de ${fmtMoney(PRICES.fine)}.`, 'bad', 3600); }
+        else UI.toast('Feu rouge grillé… personne ne t’a vu, mais tes passagers ont eu peur.', 'warn', 3200);
+      }
+    }
   }
   if (ev.hardBrake) annoy(dt * 3.5);
   if (ev.lat > 4) {
@@ -1233,6 +1265,16 @@ function adaptResolution(dt) {
   if (Math.abs(next - pixelRatio) > 0.01) { pixelRatio = next; renderer.setPixelRatio(pixelRatio); resize(); }
 }
 
+// feux : allume la bonne lampe de chaque potence
+function updateLightsVisual() {
+  if (!world.lights?.length) return;
+  const t = world.traffic.time || 0;
+  for (const L of world.lights) {
+    const st = world.road.lightState(L.light, t); // 0 vert, 1 orange, 2 rouge
+    const on = [st === 2, st === 1, st === 0];
+    for (const h of L.heads) h.lamps.forEach((m, k) => { m.material.color.setScalar(1); m.material.color.set(['#ff3b2f', '#ffb400', '#27d36b'][k]); if (!on[k]) m.material.color.multiplyScalar(0.18); });
+  }
+}
 function hudData() {
   const L = world.road.length;
   return {
@@ -1266,8 +1308,15 @@ function frame(now) {
     world.traffic.update(dt, player, false, false);
   }
   placeTaxi();
+  updateLightsVisual();
   if (!freeCam) updateCamera(dt);
   updateLod(world.lod, camera.position, isTouch ? 160 : 230, Math.max(260, scene.fog.far + 120));
+  // enseignes et feux des villes : dessinés seulement à portée de vue
+  if ((world.extrasT -= dt) <= 0 && world.extras) {
+    world.extrasT = 0.25;
+    const lim = Math.min(isTouch ? 170 : 260, scene.fog.far + 40) ** 2;
+    for (const o of world.extras) o.visible = o.position.distanceToSquared(camera.position) < lim;
+  }
   updateLighting();
   rain.update(dt, camera);
   if (post) post.composer.render(); else renderer.render(scene, camera);

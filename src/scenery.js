@@ -5,6 +5,7 @@ import * as CH from './characters.js';
 import { SHOULDER } from './road.js';
 import { rand, weighted } from './util.js';
 import { TERRAIN_MAT, WATER_MAT, CONCRETE_MAT } from './terrainmat.js';
+import { BRANDS } from './cities.js';
 
 /* ------------------------------------------------------------ géométries partagées (construites une fois) */
 let GEO = null;
@@ -22,6 +23,13 @@ function geos() {
     station: M.fuelStation(), tower: M.tower(), flagpole: M.flagpole(),
     tollCanopy: M.tollCanopy(), stall: M.stall(), fuel: M.fuelStand(), pole: M.pole(), shelter: M.shelter(), taxi: M.taxiStatic(), cabin: M.checkpointCabin(),
     yamPile: M.yamPile(), charcoal: M.charcoal(), firewood: M.firewood(), basins: M.basins(), moto: M.motoParked(),
+    // villes
+    stationG: M.fuelStation('#0f7a3a'), stationB: M.fuelStation('#1d3f8f'), stationY: M.fuelStation('#e9b53a'), stationO: M.fuelStation('#f08a24'), stationK: M.fuelStation('#2a2a2a'),
+    lamp: M.solarLamp(), billboard: M.billboard(), traffic: M.trafficPole(),
+    contA: M.containerShop('#2f5f9f'), contB: M.containerShop('#f08a24'), contC: M.containerShop('#0f7a3a'), contD: M.containerShop('#c8322b'),
+    unfinA: M.unfinished('#d9cbb0'), unfinB: M.unfinished('#e3c7a4'), nordA: M.buildingNord('#d9a273'), nordB: M.buildingNord('#efe6d2'), nordC: M.buildingNord('#c98a5a'),
+    officeG: M.office('#0f5c3c'), officeB: M.office('#1d3f8f'), officeR: M.office('#c8322b'), market: M.marketHall(),
+    parasolR: M.parasol('#c8322b'), parasolB: M.parasol('#2f78a8'), parasolY: M.parasol('#f4c430'), earthWall: M.earthWall(),
   };
   for (let i = 0; i < M.PEOPLE_VARIANTS; i++) GEO['person' + i] = M.person(i);
   for (let i = 0; i < CH.GOAT_VARIANTS; i++) GEO['goat' + i] = CH.goatGeo(i);
@@ -32,7 +40,8 @@ function geos() {
 }
 // types qui projettent une ombre (PC uniquement)
 const SHADOW_TYPES = new Set(['coco', 'oilpalm', 'mango', 'teak', 'baobab', 'karite', 'neem', 'ronier', 'fromager', 'banana',
-  'houseA', 'houseB', 'houseC', 'hut', 'compound', 'building2a', 'building2b', 'building2c', 'church', 'mosque', 'school', 'station', 'stall', 'shelter', 'taxi']);
+  'houseA', 'houseB', 'houseC', 'hut', 'compound', 'building2a', 'building2b', 'building2c', 'church', 'mosque', 'school', 'station', 'stall', 'shelter', 'taxi',
+  'stationG', 'stationB', 'stationY', 'stationO', 'stationK', 'unfinA', 'unfinB', 'nordA', 'nordB', 'nordC', 'officeG', 'officeB', 'officeR', 'market']);
 
 const CHAR_TYPE = /^(person|goat|chicken|zebu|sheep|police)/;
 const _p = new THREE.Vector3();
@@ -169,8 +178,13 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
   const flags = [];
 
   const tollZones = road.tolls.map((t) => t.s);
-  const place = (type, s, off, { scale = 1, yaw = 0, face = false, onRoad = false, sy = 1, force = false } = {}) => {
+  const reserved = []; // emplacements des repères de ville : le bâti générique les évite
+  const isReserved = (s, off) => reserved.some((r) => Math.abs(r.s - s) < r.w && Math.sign(off) === r.side && Math.abs(off) < 40);
+  const place = (type, s, off, { scale = 1, yaw = 0, face = false, onRoad = false, sy = 1, force = false, noShift = false } = {}) => {
     if (!force && Math.abs(off) < 18 && tollZones.some((ts) => Math.abs(ts - s) < 34)) return 0;
+    if (!force && !onRoad && road.islandW(s, 9) && Math.abs(off) < 15) return 0; // rond-point dégagé
+    // boulevard : tout ce qui est à gauche est repoussé derrière la chaussée d'en face
+    if (!noShift && !onRoad && off < 0 && road.isDual(s)) off -= 9.6;
     if (onRoad) road.toWorld(s, off, _p); else road.groundAt(s, off, _p);
     const h = road.headingAt(s);
     const ry = face ? h + (off > 0 ? Math.PI / 2 : -Math.PI / 2) + yaw : yaw;
@@ -214,12 +228,20 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     const dense = opts.dense || 1;
     busy.push([s0 - span - 10, s0 + span + 10]);
     for (let s = s0 - span; s < s0 + span; s += rand(rng, 8, 13) / dense) {
-      if (nearRiver(s, 20)) continue;
+      if (nearRiver(s, 20) || road.islandW(s, 10)) continue;
       for (const side of [-1, 1]) {
-        if (rng() < 0.18) continue;
+        if (rng() < 0.18 || isReserved(s, side)) continue;
         const north = style === 'nord' || (style === 'mixte' && rng() < 0.5);
-        if (style === 'ville' || (opts.city && rng() < 0.45)) {
-          place(['building2a', 'building2b', 'building2c'][Math.floor(rng() * 3)], s, side * rand(rng, 13, 16), { face: true, yaw: rand(rng, -0.04, 0.04) });
+        if (style === 'nordville' || (opts.city && style !== 'ville' && (B.house === 'nord' || B.house === 'mixte') && rng() < 0.6)) {
+          // ville du centre et du nord : rez-de-chaussée crépis ocre et blanc, quelques étages, cases au second rang
+          const r = rng();
+          place(r < 0.62 ? ['nordA', 'nordB', 'nordC'][Math.floor(rng() * 3)] : r < 0.8 ? 'unfinA' : ['building2a', 'building2b'][Math.floor(rng() * 2)], s, side * rand(rng, 12.5, 15), { face: true, yaw: rand(rng, -0.04, 0.04) });
+          if (rng() < 0.35) place(rng() < 0.5 ? 'compound' : 'hut', s, side * rand(rng, 26, 36), { yaw: rng() * 6.28 });
+          s += 4;
+        } else if (style === 'ville' || (opts.city && rng() < 0.45)) {
+          // sud : R+1 et R+2 crépis, beaucoup de maisons inachevées avec les fers en attente
+          const r = rng();
+          place(r < 0.6 ? ['building2a', 'building2b', 'building2c'][Math.floor(rng() * 3)] : ['unfinA', 'unfinB'][Math.floor(rng() * 2)], s, side * rand(rng, 13, 16), { face: true, yaw: rand(rng, -0.04, 0.04) });
           s += 4;
         } else if (north) {
           if (rng() < 0.6) place('compound', s, side * rand(rng, 17, 30), { yaw: rng() * 6.28, scale: rand(rng, 0.85, 1.1) });
@@ -232,7 +254,10 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
       // façade commerçante au bord de la route
       if (rng() < 0.42 * dense) {
         const side = rng() < 0.5 ? -1 : 1;
-        if (style !== 'nord' && rng() < 0.55) {
+        if (opts.city && style !== 'nord' && rng() < 0.3) {
+          // conteneur reconverti en boutique
+          place(['contA', 'contB', 'contC', 'contD'][Math.floor(rng() * 4)], s, side * rand(rng, 9.8, 10.6), { face: true });
+        } else if (style !== 'nord' && rng() < 0.55) {
           const off = side * rand(rng, 9.6, 10.6);
           place(['kioskA', 'kioskB', 'kioskC'][Math.floor(rng() * 3)], s, off, { face: true });
           shopSign(s, off);
@@ -274,18 +299,198 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
       place('tower', s0 + rand(rng, -span, span), (rng() < 0.5 ? -1 : 1) * rand(rng, 45, 70));
       for (let k = 0; k < 5; k++) person(ss + rand(rng, -6, 6), side * rand(rng, 24, 30), [8]);
     }
-    if (opts.city) {
+    if (opts.city && !opts.noStation) {
       place('station', s0 + span * 0.7, 18, { face: true });
       if (opts.secondWorship && Object.keys(worship).length) place(weighted(rng, worship), s0 - span * 0.5, -40, { face: true });
     }
     // poteaux électriques plus serrés en agglomération
   };
 
+  /* --- traversées de villes (plans sourcés dans cities.js) ---------------- */
+  const LO = -88, HI = L + 215;
+  const inRoad = (s) => s > LO && s < HI;
+  const facing = (s, off) => road.headingAt(s) + (road.rev ? 0 : Math.PI) + (off > 0 ? -0.3 : 0.3) * (road.rev ? -1 : 1);
+  const labelSign = (s, off, lines, style, size = [3.4, 1.4], postH = 2.2) => {
+    if (!inRoad(s)) return;
+    const sg = makeSign(lines, style, size, postH);
+    if (off < 0 && road.isDual(s)) off -= 9.6;
+    road.groundAt(s, off, sg.position);
+    sg.rotation.y = facing(s, off);
+    group.add(sg);
+    extras.push(sg);
+  };
+  const STYLE = {
+    mairie: { bg: '#0f5c3c', fg: '#ffffff', border: '#f4c430' }, police: { bg: '#1d3f8f', fg: '#ffffff', border: '#ffffff' },
+    hospital: { bg: '#ffffff', fg: '#c8322b', border: '#c8322b' }, hotel: { bg: '#3a2a1e', fg: '#f4c430', border: '#f4c430' },
+    gare: { bg: '#f4c430', fg: '#1b1a17', border: '#1b1a17' }, market: { bg: '#c8322b', fg: '#ffffff', border: '#ffffff' },
+    shop: { bg: '#f08a24', fg: '#1b1a17', border: '#1b1a17' }, worship: { bg: '#f1ece0', fg: '#1b1a17', border: '#6b5a45' },
+    heritage: { bg: '#6b3e26', fg: '#ffffff', border: '#ffffff' },
+  };
+  const STATION_GEO = { 'TOTAL': 'station', 'MRS': 'stationG', 'OANDO': 'stationG', 'T-OIL': 'stationB', 'ÉTOILE DU GOLFE': 'stationB', 'CAP': 'stationY', 'SHELL': 'stationY', 'SANOL': 'stationO', 'SOMIE': 'stationK', 'ZENER': 'stationK' };
+  const landmark = (z, m) => {
+    const s = z.sOf(m.at);
+    if (!inRoad(s) || nearRiver(s, 8)) return;
+    const sd = z.sideSign(m.side);
+    const d = m.d || 0;
+    const big = (k) => ({ station: 14, market: 16, gare: 14, mosque: 14, church: 14, mairie: 12, police: 10, hotel: 10, hospital: 12, shop: 8, wall: 10, heritage: 6, cattle: 16, zemstand: 6 }[k] || 10);
+    reserved.push({ s, w: big(m.kind), side: sd });
+    const off = (o) => sd * (o + d);
+    switch (m.kind) {
+      case 'station': {
+        place(STATION_GEO[m.brand] || 'station', s, off(18), { face: true, force: true });
+        const [bg, fg] = BRANDS[m.brand] || ['#c8322b', '#ffffff'];
+        labelSign(s - 8, off(9.2), m.label ? [m.brand, m.label] : [m.brand], { bg, fg, border: fg }, [2.4, 1.3], 3.4);
+        for (let k = 0; k < 2; k++) person(s + rand(rng, -5, 5), off(rand(rng, 13, 20)));
+        break;
+      }
+      case 'market': {
+        if (m.small) { for (let k = 0; k < 4; k++) place(['parasolR', 'parasolB', 'parasolY'][k % 3], s + (k - 1.5) * 3.2, off(rand(rng, 9.2, 11)), { yaw: rng() * 6.28 }); }
+        else {
+          place('market', s, off(19), { face: true });
+          for (let k = 0; k < 6; k++) place(['parasolR', 'parasolB', 'parasolY'][k % 3], s + (k - 2.5) * 3.4, off(rand(rng, 9.2, 10.8)), { yaw: rng() * 6.28 });
+          for (let k = 0; k < 3; k++) place(['basins', 'yamPile', 'charcoal'][k], s + rand(rng, -9, 9), off(8.4), { face: true });
+        }
+        for (let k = 0; k < (m.small ? 5 : 12); k++) person(s + rand(rng, -11, 11), off(rand(rng, 8.4, 22)));
+        labelSign(s - 10, off(8.6), [m.label], STYLE.market, [3.6, 1.2], 2.4);
+        break;
+      }
+      case 'gare': {
+        place('shelter', s, off(11), { face: true });
+        for (let k = 0; k < 3; k++) place('taxi', s - 9 + k * 6.5, off(16), { yaw: road.headingAt(s) + 0.3 });
+        for (let k = 0; k < 6; k++) person(s + rand(rng, -9, 9), off(rand(rng, 8.6, 13)));
+        labelSign(s - 6, off(8.8), ['GARE', m.label], STYLE.gare, [3.2, 1.4], 2.4);
+        break;
+      }
+      case 'mosque':
+        place('mosque', s, off(m.big ? 24 : 20), { face: true, scale: m.big ? 1.55 : 1 });
+        if (m.label) labelSign(s - 10, off(8.8), [m.label], STYLE.worship, [3.6, 1.1], 1.6);
+        break;
+      case 'church':
+        place('church', s, off(20), { face: true, scale: m.scale || 1 });
+        if (m.label) labelSign(s - 9, off(8.8), [m.label], STYLE.worship, [3.6, 1.1], 1.6);
+        break;
+      case 'mairie': case 'police': case 'hospital': {
+        place(m.kind === 'mairie' ? 'officeG' : m.kind === 'police' ? 'officeB' : 'officeR', s, off(17), { face: true });
+        if (m.kind !== 'hospital') flag(s + 6.5, off(10.5));
+        if (m.kind === 'police') place('police', s - 3, off(8.6), { yaw: road.headingAt(s) + (sd > 0 ? Math.PI / 2 : -Math.PI / 2) });
+        labelSign(s - 7.5, off(9), [m.label], STYLE[m.kind], [3.6, 1.1], 1.4);
+        break;
+      }
+      case 'hotel':
+        place(rng() < 0.5 ? 'building2a' : 'building2c', s, off(15), { face: true });
+        labelSign(s - 6, off(9), [m.label], STYLE.hotel, [3.4, 1.1], 2.6);
+        break;
+      case 'shop':
+        place('contA', s, off(10.2), { face: true });
+        labelSign(s - 4.5, off(8.8), [m.label], STYLE.shop, [3.2, 1.0], 2.2);
+        break;
+      case 'zemstand':
+        for (let k = 0; k < 6; k++) place('moto', s + k * 1.1, off(8.4), { yaw: road.headingAt(s) + Math.PI / 2 + rand(rng, -0.2, 0.2), force: true });
+        for (let k = 0; k < 4; k++) person(s + rand(rng, -3, 7), off(rand(rng, 9, 10.5)), [1, 5, 10, 13]);
+        break;
+      case 'wall':
+        place('earthWall', s, off(12), { face: true });
+        labelSign(s - 10, off(8.6), [m.label, m.sub || ''], STYLE.heritage, [3.6, 1.5], 1.4);
+        break;
+      case 'heritage':
+        labelSign(s, off(8.4), [m.label, 'Site archéologique'], STYLE.heritage, [3.6, 1.5], 1.2);
+        break;
+      case 'cattle':
+        for (let k = 0; k < 9; k++) place('zebu' + Math.floor(rng() * 3), s + rand(rng, -10, 10), off(rand(rng, 12, 22)), { yaw: rng() * 6.28 });
+        for (let k = 0; k < 3; k++) person(s + rand(rng, -8, 8), off(rand(rng, 11, 18)), [4, 7]);
+        labelSign(s - 12, off(8.8), [m.label], STYLE.market, [3.4, 1.1], 1.8);
+        break;
+      default: break;
+    }
+  };
+  function buildCities() {
+    const out = [];
+    for (const z of road.zones) {
+      const P = z.plan;
+      for (const m of P.marks) landmark(z, m);
+      // bâti urbain entre les repères
+      for (const [a, b] of P.urban || []) {
+        let s0 = Math.max(LO, Math.min(z.sOf(a), z.sOf(b))), s1 = Math.min(HI, Math.max(z.sOf(a), z.sOf(b)));
+        if (s1 - s0 < 30) continue;
+        settlement((s0 + s1) / 2, (s1 - s0) / 2, { city: !P.town, style: P.town ? (P.style === 'nordville' ? 'mixte' : null) : P.style || null, dense: P.dense || 1.3, noStation: true, named: true });
+      }
+      const ur = (P.urban || []).map(([a, b]) => [Math.min(z.sOf(a), z.sOf(b)), Math.max(z.sOf(a), z.sOf(b))]);
+      // lampadaires solaires
+      if (P.lamps) for (const [a, b] of ur) for (let s = Math.max(LO, a); s < Math.min(HI, b); s += 46) {
+        if (nearRiver(s, 4) || road.islandW(s, 9)) continue;
+        place('lamp', s, 8.1, { face: true, force: true });
+        if (road.isDual(s)) place('lamp', s + 23, -5.3, { face: true, force: true, noShift: true });
+      }
+      // panneaux publicitaires sur portique (Lomé et grandes villes)
+      if ((P.dense || 1) >= 1.3) for (const [a, b] of ur) for (let s = Math.max(LO, a) + 60; s < Math.min(HI, b); s += rand(rng, 160, 260)) {
+        const side = rng() < 0.5 ? -1 : 1;
+        if (isReserved(s, side) || nearRiver(s, 10)) continue;
+        place('billboard', s, side * 11.5, { face: true, yaw: side * 0.5 * (road.rev ? 1 : -1) });
+        adBoards.push({ s, off: side * 11.5 });
+      }
+    }
+    // feux tricolores : potence de chaque côté, trois lampes allumées par le jeu
+    const MATS = ['#ff3b2f', '#ffb400', '#27d36b'].map((c) => new THREE.MeshBasicMaterial({ color: c }));
+    for (const l of road.lights) {
+      const heads = [];
+      const dual = road.isDual(l.s);
+      // potence à droite pour notre sens ; en face, sur le terre-plein (boulevard) ou sur le bas-côté gauche
+      for (const side of [1, -1]) {
+        const ls = l.s + (side > 0 ? -3.5 : 3.5);
+        const poleOff = side > 0 ? 7.6 : dual ? -5.3 : -7.6;
+        place('traffic', ls, poleOff, { yaw: road.headingAt(ls) + (side > 0 ? -Math.PI / 2 : Math.PI / 2), force: true, noShift: true });
+        const lampOff = side > 0 ? 4.35 : dual ? -8.6 : -4.35;
+        road.groundAt(ls, lampOff, _p);
+        const facingY = road.headingAt(ls) + (side > 0 ? Math.PI : 0);
+        const lamps = [0, 1, 2].map((k) => {
+          const m = new THREE.Mesh(new THREE.SphereGeometry(0.19, 10, 8), MATS[k].clone());
+          m.position.set(_p.x + Math.sin(facingY) * 0.18, _p.y + 4.78 - k * 0.38, _p.z + Math.cos(facingY) * 0.18);
+          group.add(m);
+          extras.push(m);
+          return m;
+        });
+        heads.push({ lamps, dir: side });
+      }
+      out.push({ light: l, heads });
+    }
+    // monuments des ronds-points
+    for (const i of road.islands) {
+      if (!i.pos) continue;
+      const mm = new THREE.Mesh(M.monument(i.monument), MAT);
+      mm.position.copy(i.pos);
+      mm.rotation.y = i.h;
+      mm.castShadow = shadows;
+      group.add(mm);
+      extras.push(mm);
+    }
+    return out;
+  }
+  const adBoards = [];
+  const extras = []; // objets isolés des villes (enseignes, feux, affiches) : masqués au-delà de la brume
   const startCity = road.fromCity, endCity = road.toCity;
-  settlement(0, 110, { city: true, dense: 1.6, bigMosque: startCity.name === 'Sokodé', secondWorship: true });
-  settlement(L + 70, 160, { city: true, dense: 1.5, bigMosque: endCity.name === 'Sokodé', secondWorship: true });
-  if (startCity.name === 'Lomé') settlement(-60, 60, { style: 'ville', dense: 1.8 });
-  if (endCity.name === 'Lomé') settlement(L + 160, 90, { style: 'ville', dense: 1.8 });
+  const lights = buildCities();
+  // affiches des panneaux publicitaires (réclames génériques, sans marque réelle)
+  const ADS = [
+    [['RECHARGE ICI', 'Crédit · Transfert · Mobile money'], { bg: '#f4c430', fg: '#1b1a17', border: '#1b1a17' }],
+    [['CIMENT SOLIDE', 'Bâtir pour nos enfants'], { bg: '#9aa0a6', fg: '#1b1a17', border: '#c8322b' }],
+    [['ÉCOLE LES ÉLITES', 'Inscriptions ouvertes'], { bg: '#1d3f8f', fg: '#ffffff', border: '#f4c430' }],
+    [['LE PAGNE QUI DURE', 'Wax · Bazin · Kenté'], { bg: '#7b2f8f', fg: '#ffffff', border: '#f08a24' }],
+    [['ROULEZ PRUDEMMENT', 'La route ne pardonne pas'], { bg: '#ffffff', fg: '#c8322b', border: '#c8322b' }],
+    [['CASQUE OBLIGATOIRE', 'Zémidjan, protège ta tête'], { bg: '#0f5c3c', fg: '#ffffff', border: '#ffffff' }],
+    [['SAVON DOUX', 'Propre comme le jour'], { bg: '#2f9fd0', fg: '#ffffff', border: '#ffffff' }],
+    [['PALUDISME', 'Dormez sous moustiquaire'], { bg: '#ffffff', fg: '#0f5c3c', border: '#0f5c3c' }],
+  ];
+  for (const ad of adBoards) {
+    const [lines, style] = ADS[Math.floor(rng() * ADS.length)];
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(6.1, 2.75), new THREE.MeshBasicMaterial({ map: signTexture(lines, style) }));
+    const off = ad.off < 0 && road.isDual(ad.s) ? ad.off - 9.6 : ad.off;
+    road.groundAt(ad.s, off, _p);
+    const ry = road.headingAt(ad.s) + (off > 0 ? Math.PI / 2 : -Math.PI / 2) + Math.sign(ad.off) * 0.5 * (road.rev ? 1 : -1);
+    panel.position.set(_p.x + Math.sin(ry) * 0.02, _p.y + 5.5, _p.z + Math.cos(ry) * 0.02);
+    panel.rotation.y = ry;
+    group.add(panel);
+    extras.push(panel);
+  }
   // gare routière de départ : abri, taxis garés, voyageurs
   place('shelter', 6, -11, { face: true });
   for (let k = 0; k < 4; k++) place('taxi', -18 + k * 7, -8.4 - (k % 2) * 0.3, { yaw: road.headingAt(-18 + k * 7) + 0.25 });
@@ -294,7 +499,10 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
   for (let k = 0; k < 3; k++) place('taxi', L + 40 + k * 7, -8.4, { yaw: road.headingAt(L + 40) + 0.25 });
   for (let k = 0; k < 6; k++) person(L + rand(rng, 20, 60), -rand(rng, 8.6, 11));
 
-  for (const v of road.villages) settlement(v.s, v.named ? 110 : 45, { named: v.named, dense: v.named ? 1.3 : 0.9 });
+  for (const v of road.villages) {
+    if (v.named && road.zones.some((z) => z.name === v.name)) continue; // ville détaillée par son plan
+    settlement(v.s, v.named ? 110 : 45, { named: v.named, dense: v.named ? 1.3 : 0.9 });
+  }
 
   // vendeuses d'essence au bord de la route
   for (const f of road.fuelStops) {
@@ -568,7 +776,7 @@ export function buildScenery(road, rng, quality = 1, shadows = false) {
     return { toll: t, pivots };
   });
 
-  return { group, checkpoints, tolls, lod };
+  return { group, checkpoints, tolls, lod, lights, extras };
 }
 
 // masque les îlots de personnages et d'animaux trop loin de la caméra

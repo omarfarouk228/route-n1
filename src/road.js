@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BIOMES, CITIES } from './data.js';
+import { cityZones } from './cities.js';
 import { MAT } from './models.js';
 import { mulberry32, noise2, smoothstep, clamp, rand, weighted, deName } from './util.js';
 import { routeIndex, headingAt as realHeading } from './geo.js';
@@ -31,6 +32,7 @@ const CHAR = new THREE.Color('#2b2724');
 const ASH = new THREE.Color('#6a5f55');
 const MUD = new THREE.Color('#5e4e36');
 const STONE = new THREE.Color('#7d6a52');
+const ROAD2_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 const CONCRETE = new THREE.Color('#bdb6a8');
 
 export class Road {
@@ -170,6 +172,13 @@ export class Road {
     y += (noise2(wx * 0.012, wz * 0.012) * 2 - 1) * B.hill * 3.2 * t;
     y += (noise2(wx * 0.06, wz * 0.06) - 0.5) * 1.1 * t;
     y -= 0.55 * smoothstep(SHOULDER, 8.6, d) * (1 - smoothstep(9.5, 13, d));
+    const sI = this.sAt(i);
+    if (off < 0 && d < 18 && this.isDual(sI)) return base;
+    for (const hl of this.hills) {
+      if (Math.sign(off) !== hl.side) continue;
+      const k = smoothstep(hl.r[0] - 80, hl.r[0] + 40, sI) * (1 - smoothstep(hl.r[1] - 40, hl.r[1] + 80, sI));
+      if (k > 0) y += k * hl.h * smoothstep(hl.at, hl.at + 45, d) * (0.8 + 0.4 * noise2(wx * 0.02, wz * 0.02));
+    }
     const c = this.cliff[i];
     if (c > 0) y += c * (24 + noise2(wx * 0.05, wz * 0.05) * 14) * smoothstep(9.5, 17, d);
     const si = this.sAt(i);
@@ -215,7 +224,8 @@ export class Road {
     return null;
   }
 
-  wallLimit(s) {
+  wallLimit(s, side = 1) {
+    if (side < 0 && this.isDual(s)) return 4.45; // terre-plein central du boulevard
     return this.sample(s).cliff > 0.4 ? 8.4 : 16;
   }
 
@@ -224,12 +234,14 @@ export class Road {
     const rng = this.rng, L = this.length;
     const st = this.stage;
     this.towns = st.towns.map((t) => ({ s: t.t * L, name: t.name, named: true, fuel: true }));
-    // petits villages anonymes
+    this.tolls = (st.tolls || []).map((t) => ({ s: t.t * L, name: t.name, paid: false, wait: 0, warned: false, hit: 0 }));
+    this.cityLayout();
+    // petits villages anonymes (pas dans les traversées de villes)
     this.villages = [...this.towns];
     let s = 280 + rng() * 200;
     while (s < L - 300) {
       const B = this.biomeAt(s);
-      const near = this.villages.some((v) => Math.abs(v.s - s) < 260);
+      const near = this.villages.some((v) => Math.abs(v.s - s) < 260) || this.inUrban(s, 140);
       if (!near && !B.cliff) this.villages.push({ s, name: null, named: false, fuel: rng() < 0.5 });
       s += rand(rng, B.villageEvery[0], B.villageEvery[1]);
     }
@@ -242,15 +254,13 @@ export class Road {
     }
     this.fuelStops = this.villages.filter((v) => v.fuel).map((v) => ({ s: v.s + 28, side: 1, warned: false }));
 
-    // postes de péage (positions réelles) : arrêt obligatoire au guichet
-    this.tolls = (st.tolls || []).map((t) => ({ s: t.t * L, name: t.name, paid: false, wait: 0, warned: false, hit: 0 }));
     // contrôles routiers (jamais dans la faille ni près d'un péage) ; certains demandent les papiers
     this.checkpoints = [];
     const nCp = Math.max(1, Math.round(L / 3800 + (rng() - 0.5)));
     for (let k = 0; k < nCp; k++) {
       for (let tries = 0; tries < 20; tries++) {
         const cs = L * rand(rng, 0.25, 0.85);
-        const ok = !this.biomeAt(cs).cliff && !this.checkpoints.some((c) => Math.abs(c.s - cs) < 500) && !this.villages.some((v) => Math.abs(v.s - cs) < 90) && !this.tolls.some((t) => Math.abs(t.s - cs) < 400);
+        const ok = !this.biomeAt(cs).cliff && !this.inUrban(cs, 60) && !this.checkpoints.some((c) => Math.abs(c.s - cs) < 500) && !this.villages.some((v) => Math.abs(v.s - cs) < 90) && !this.tolls.some((t) => Math.abs(t.s - cs) < 400);
         if (ok) { this.checkpoints.push({ s: cs, done: false, warned: false, open: 0, papers: rng() < 0.45, wait: 0, cleared: false }); break; }
       }
     }
@@ -266,6 +276,7 @@ export class Road {
         this.potholes.push({ s: c0 + rand(rng, -14, 14), x: lane * rand(rng, 0.4, 3.4), r: rand(rng, 0.35, 0.75), hit: false });
       }
     }
+    this.potholes = this.potholes.filter((p) => !(this.isDual(p.s) && rng() < 0.7) && !this.islandW(p.s, 14) && !this.lights.some((l) => Math.abs(l.s - p.s) < 20));
     this.potholes.sort((a, b) => a.s - b.s);
 
     // champs autour des villages (le sol est labouré sous les rangs)
@@ -306,7 +317,7 @@ export class Road {
       const p = v.named ? (south ? 0.75 : 0.45) : (south ? 0.2 : 0.08);
       if (rng() < p) for (const d of [-1, 1]) this.bumps.push({ s: v.s + d * (span(v) + 6), hit: false });
     }
-    this.bumps = this.bumps.filter((b) => !this.tolls.some((t) => Math.abs(t.s - b.s) < 60));
+    this.bumps = this.bumps.filter((b) => !this.tolls.some((t) => Math.abs(t.s - b.s) < 60) && !this.isDual(b.s) && !this.islandW(b.s, 30));
     this.bumps.sort((a, b) => a.s - b.s);
 
     // traversées d'animaux près des villages
@@ -319,7 +330,7 @@ export class Road {
     }
 
     // imprévus de l'étape : camion en panne (branchages posés sur la chaussée), troupeau de zébus, route inondée
-    const okSpot = (cs, gap = 160) => !this.biomeAt(cs).cliff && !this.villages.some((v) => Math.abs(v.s - cs) < gap)
+    const okSpot = (cs, gap = 160) => !this.biomeAt(cs).cliff && !this.isDual(cs) && !this.islandW(cs, 60) && !this.lights.some((l) => Math.abs(l.s - cs) < 80) && !this.villages.some((v) => Math.abs(v.s - cs) < gap)
       && !this.tolls.some((t) => Math.abs(t.s - cs) < 300) && !this.checkpoints.some((c) => Math.abs(c.s - cs) < 300) && !this.bridgeAt(cs);
     const spot = (a, b, gap) => { for (let k = 0; k < 30; k++) { const cs = L * rand(rng, a, b); if (okSpot(cs, gap)) return cs; } return null; };
     this.broken = null;
@@ -358,10 +369,52 @@ export class Road {
     if (this.broken) this.notes.push({ s: this.broken.s - 230, text: 'Branchages sur la chaussée : un camion est en panne sur ta voie', kind: 'warn' });
     if (this.herd) this.notes.push({ s: this.herd.s - 210, text: 'Troupeau de zébus sur la route : ralentis, klaxonne', kind: 'warn' });
     for (const f of this.floods) this.notes.push({ s: f.s - f.len / 2 - 160, text: 'Route inondée après l’averse : traverse au pas', kind: 'warn' });
+    for (const l of this.lights) this.notes.push({ s: l.s - 150, text: 'Feux tricolores : arrête-toi au rouge', kind: 'info', soft: true });
+    for (const i of this.islands) this.notes.push({ s: i.s - 140, text: 'Rond-point : contourne le terre-plein par la droite', kind: 'info' });
+    if (this.dual.length && this.dual[0][0] < 40) this.notes.push({ s: 30, text: 'Boulevard à 2x2 voies : la voie de gauche sert à doubler', kind: 'info' });
     for (const r of this.rivers) if (r.name) this.notes.push({ s: r.s - 90, text: `Pont sur le ${r.name}`, kind: 'town' });
     for (const v of this.villages) if (!v.named) this.notes.push({ s: v.s - span(v) - 60, text: 'Village : ralentisseurs, enfants et animaux', kind: 'info', soft: true });
     this.notes.sort((a, b) => a.s - b.s);
     for (const nt of this.notes) nt.shown = false;
+  }
+
+  /* ------------------------------------------------------------ traversées de villes (cities.js) */
+  cityLayout() {
+    const L = this.length;
+    this.zones = cityZones(this);
+    this.dual = []; this.lights = []; this.islands = []; this.urban = []; this.hills = [];
+    const rng = (a, b) => [Math.min(a, b), Math.max(a, b)];
+    for (const z of this.zones) {
+      const P = z.plan;
+      for (const [a, b] of P.dual || []) this.dual.push(rng(z.sOf(a), z.sOf(b)));
+      for (const at of P.lights || []) this.lights.push({ s: z.sOf(at), phase: (at * 37) % 20, ran: false });
+      for (const r of P.roundabouts || []) this.islands.push({ s: z.sOf(r.at), R: 5.2, monument: r.monument, city: z.name });
+      for (const [a, b] of P.urban || []) this.urban.push({ r: rng(z.sOf(a), z.sOf(b)), zone: z });
+      for (const h of P.hills || []) this.hills.push({ r: rng(z.sOf(h.from), z.sOf(h.to)), side: z.sideSign(h.side), h: h.h, at: h.at });
+    }
+    // on garde ce qui tombe sur la route jouée
+    const inside = (s) => s > -95 && s < L + 225;
+    this.lights = this.lights.filter((l) => inside(l.s) && !this.tolls.some((t) => Math.abs(t.s - l.s) < 120));
+    this.islands = this.islands.filter((i) => i.s > 30 && i.s < L + 180 && !this.rivers.some((r) => Math.abs(r.s - i.s) < 60));
+  }
+  isDual(s) { for (const [a, b] of this.dual) if (s >= a && s <= b) return true; return false; }
+  inUrban(s, pad = 0) { for (const u of this.urban) if (s >= u.r[0] - pad && s <= u.r[1] + pad) return u; return null; }
+  // demi-largeur occupée par le terre-plein d'un rond-point à l'abscisse s (0 hors rond-point)
+  islandW(s, pad = 0) {
+    for (const i of this.islands) { const d = Math.abs(s - i.s); if (d < i.R + pad) return pad ? 1 : Math.sqrt(Math.max(0, i.R * i.R - d * d)); }
+    return 0;
+  }
+  islandAt(s) { for (const i of this.islands) if (Math.abs(s - i.s) < i.R + 9) return i; return null; }
+  // goudron : la chaussée, l'anneau d'un rond-point
+  pavedHalf(s) {
+    const i = this.islandAt(s);
+    if (i) { const d = Math.abs(s - i.s); return Math.max(HALF_ROAD + 0.4, Math.sqrt(Math.max(0, (i.R + 8) ** 2 - d * d))); }
+    return HALF_ROAD + 0.4;
+  }
+  // feu tricolore : 0 vert, 1 orange, 2 rouge (cycle de 22 s)
+  lightState(l, time) {
+    const t = ((time + l.phase) % 22 + 22) % 22;
+    return t < 11 ? 0 : t < 14 ? 1 : 2;
   }
 
   /* ------------------------------------------------------------ maillages */
@@ -449,6 +502,9 @@ export class Road {
     g.add(this.potholeMesh());
     if (this.bumps.length) g.add(this.bumpMesh());
     for (const f of this.floods) g.add(this.floodMesh(f));
+    for (const [a, b] of this.dual) g.add(this.dualMesh(a, b));
+    for (const u of this.urban) if (u.zone.plan.gutters) g.add(this.gutterMesh(u.r[0], u.r[1]));
+    for (const i of this.islands) g.add(this.islandMesh(i));
     return g;
   }
 
@@ -557,6 +613,12 @@ export class Road {
       const solid = inFaille(i);
       if (solid || ((s % 10) + 10) % 10 < 4) quad(i, i + 1, 0, 0.15);
     }
+    // lignes d'arrêt des feux tricolores
+    for (const l of this.lights) {
+      const i = Math.floor(this.idx(l.s - 3));
+      // passage piéton (bandes blanches) à la hauteur de la ligne d'arrêt
+      if (i > 0 && i < this.n - 3) for (let x = -3.4; x <= 3.5; x += 1.0) { quad(i, i + 1, x, 0.5, 0.03); quad(i + 1, i + 2, x, 0.5, 0.03); }
+    }
     // lignes de rive usées, par tronçons
     for (let i = 0; i < this.n - 2; i++) {
       const s = this.sAt(i);
@@ -615,6 +677,87 @@ export class Road {
     const m = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: '#6b5636', specular: '#cfd8e0', shininess: 80, transparent: true, opacity: 0.88, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     m.receiveShadow = true;
     return m;
+  }
+  rowsIn(a, b, step = 1) {
+    const rows = [];
+    const i0 = Math.max(0, Math.floor(this.idx(a))), i1 = Math.min(this.n - 1, Math.ceil(this.idx(b)));
+    for (let i = i0; i <= i1; i += step) rows.push(i);
+    return rows;
+  }
+  // boulevard : terre-plein central, chaussée d'en face (2 voies), marquages
+  dualMesh(a, b) {
+    const grp = new THREE.Group();
+    const rows = this.rowsIn(a, b);
+    if (rows.length < 2) return grp;
+    const asph = (i, off, out) => { out.copy(ASPH0).lerp(ASPH1, noise2(this.sAt(i) * 0.05, off * 0.4)); };
+    const ra = this.ribbon(rows, [-14.4, -10.3, -6.3], (i) => this.py[i] - 0.01, asph);
+    ra.material = ROAD2_MAT; grp.add(ra);
+    const curb = new THREE.Color('#d9d4c6'), grass = new THREE.Color('#6d8f3c');
+    const mid = this.ribbon(rows, [-6.3, -6.15, -4.45, -4.3], (i, off) => this.py[i] + (Math.abs(off + 5.3) < 0.9 ? 0.22 : 0.02), (i, off, out) => { out.copy(Math.abs(off + 5.3) < 0.9 ? grass : curb); });
+    mid.material = ROAD2_MAT; grp.add(mid);
+    // bas-côté au-delà de la chaussée d'en face
+    const sh = this.ribbon(rows, [-17, -14.4], (i) => this.py[i] - 0.1, (i, off, out) => { out.copy(BIOME_COLORS[this.biomeKey(clamp(this.sAt(i), 0, this.length))].sh); });
+    sh.material = ROAD2_MAT; grp.add(sh);
+    // marquages de la chaussée d'en face
+    const pos = [];
+    const quad = (i0, i1, off, w) => {
+      const p = [];
+      for (const i of [i0, i1]) { const ch = Math.cos(this.h[i]), s2 = Math.sin(this.h[i]); for (const o of [off - w / 2, off + w / 2]) p.push([this.px[i] - ch * o, this.py[i] + 0.02, this.pz[i] + s2 * o]); }
+      pos.push(...p[0], ...p[1], ...p[2], ...p[1], ...p[3], ...p[2]);
+    };
+    for (let k = 0; k < rows.length - 1; k++) {
+      const i = rows[k], s0 = this.sAt(i);
+      if (((s0 % 10) + 10) % 10 < 4) quad(i, i + 1, -10.3, 0.15);
+      quad(i, i + 1, -14.0, 0.12); quad(i, i + 1, -6.65, 0.12);
+    }
+    const mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    mg.computeVertexNormals();
+    grp.add(new THREE.Mesh(mg, new THREE.MeshLambertMaterial({ color: '#e8e4d6', polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+    return grp;
+  }
+  // caniveaux ouverts en béton de part et d'autre de la route en ville
+  gutterMesh(a, b) {
+    const grp = new THREE.Group();
+    const rows = this.rowsIn(Math.max(a, -88), Math.min(b, this.length + 218));
+    if (rows.length < 2) return grp;
+    const lip = new THREE.Color('#b8b1a3'), dark = new THREE.Color('#3a352e');
+    for (const side of [-1, 1]) {
+      const offs = [7.0, 7.12, 7.78, 7.9].map((o) => o * side);
+      if (side < 0) offs.reverse();
+      // tronçons continus (interrompus aux ponts, aux ronds-points et le long du terre-plein)
+      const okRow = (i) => !(side < 0 && this.isDual(this.sAt(i))) && !this.bridgeAt(this.sAt(i)) && !this.islandAt(this.sAt(i));
+      let seg = [];
+      const flush = () => {
+        if (seg.length > 2) {
+          const m = this.ribbon(seg, offs, (i, off) => this.py[i] + (Math.abs(Math.abs(off) - 7.45) < 0.3 ? -0.45 : -0.02), (i, off, out) => { out.copy(Math.abs(Math.abs(off) - 7.45) < 0.3 ? dark : lip); });
+          m.material = ROAD2_MAT;
+          grp.add(m);
+        }
+        seg = [];
+      };
+      for (const i of rows) { if (okRow(i)) seg.push(i); else flush(); }
+      flush();
+    }
+    return grp;
+  }
+  // rond-point : anneau de goudron et terre-plein central bordé de blanc et rouge
+  islandMesh(isl) {
+    const grp = new THREE.Group();
+    const f = this.sample(isl.s);
+    const ring = new THREE.Mesh(new THREE.CircleGeometry(isl.R + 8, 40).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#3f3e3d', polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    ring.position.set(f.x, f.y + 0.012, f.z);
+    ring.receiveShadow = true;
+    grp.add(ring);
+    const curb = new THREE.Mesh(new THREE.CylinderGeometry(isl.R, isl.R, 0.32, 40), new THREE.MeshLambertMaterial({ color: '#e9e6dc' }));
+    curb.position.set(f.x, f.y + 0.16, f.z);
+    grp.add(curb);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(isl.R - 0.25, isl.R - 0.25, 0.36, 40), new THREE.MeshLambertMaterial({ color: '#5f8a36' }));
+    top.position.set(f.x, f.y + 0.18, f.z);
+    grp.add(top);
+    isl.pos = new THREE.Vector3(f.x, f.y + 0.36, f.z);
+    isl.h = f.h;
+    return grp;
   }
   floodAt(s) { for (const f of this.floods) if (Math.abs(s - f.s) < f.len / 2) return f; return null; }
 

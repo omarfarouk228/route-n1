@@ -96,7 +96,10 @@ export class Traffic {
 
   place(it) {
     const r = this.road;
-    r.toWorld(it.s, it.x, it.mesh.position);
+    // autour d'un rond-point, les véhicules contournent le terre-plein
+    const w = it.animal ? 0 : r.islandW(it.s);
+    it.rx = w ? Math.sign(it.x || 1) * Math.max(Math.abs(it.x), w + 1.8) : it.x;
+    r.toWorld(it.s, it.rx, it.mesh.position);
     const h = r.headingAt(it.s);
     if (it.animal) it.mesh.rotation.y = h + (it.vx > 0 ? -Math.PI / 2 : Math.PI / 2);
     else it.mesh.rotation.y = h + (it.dir < 0 ? Math.PI : 0) + (it.tx - it.x) * 0.04 * it.dir;
@@ -111,6 +114,7 @@ export class Traffic {
     const B = r.biomeAt(clamp(P.s, 0, L));
     const dens = B.traffic;
     this.events.length = 0;
+    this.time = (this.time || 0) + dt;
 
     // --- apparitions
     const sameDir = this.items.filter((o) => o.dir === 1 && !o.animal && o.type !== 'moto').length;
@@ -118,8 +122,10 @@ export class Traffic {
     if (this.tSame <= 0 && sameDir < Math.round(1 + dens * 1.6)) {
       const s = P.s + rand(rng, 320, 620);
       if (s < L - 90 && this.free(s, 1.9, 9)) {
-        const car = rng() < 0.22;
-        this.spawn(car ? 'car' : 'truck', s, 1.9, car ? rand(rng, 18, 21) : rand(rng, 10.5, 14.5));
+        const car = rng() < (r.isDual(s) ? 0.55 : 0.22);
+        // sur le boulevard, des voitures roulent aussi sur la voie de gauche
+        const lx = r.isDual(s) && car && rng() < 0.5 ? -1.9 : 1.9;
+        this.spawn(car ? 'car' : 'truck', s, lx, car ? rand(rng, 18, 21) : rand(rng, 10.5, 14.5));
       }
       this.tSame = rand(rng, 3, 7);
     }
@@ -127,9 +133,10 @@ export class Traffic {
     if (this.tOn <= 0) {
       const s = P.s + rand(rng, 420, 600);
       const type = weighted(rng, { car: 4, bus: 2, truck: 3, moto: 1.5 });
-      const x = type === 'moto' ? -4.8 : -1.9;
+      const dual = r.isDual(s);
+      const x = dual ? (type === 'moto' ? -13.4 : rng() < 0.5 ? -8.3 : -12.3) : type === 'moto' ? -4.8 : -1.9;
       const v = -{ car: rand(rng, 19, 26), bus: rand(rng, 16, 21), truck: rand(rng, 11, 16), moto: rand(rng, 9, 12) }[type];
-      if (s < L + 120 && s > 40 && this.free(s, x, 9)) this.spawn(type, s, x, v);
+      if (s < L + 120 && s > 40 && this.free(s, x, 9)) this.spawn(type, s, x, v, { dualLane: dual });
       this.tOn = rand(rng, 2.5, 7.5) / dens;
     }
     this.tMoto -= dt;
@@ -180,6 +187,7 @@ export class Traffic {
       if (it.broken) { it.v = 0; this.place(it); if (it.s < P.s - 80) { this.release(it); this.items.splice(n, 1); } continue; }
       if (it.dir === 1) {
         let desired = it.baseV;
+        if (it.baseX < 0 && !r.isDual(it.s + 30)) it.baseX = it.tx = 1.9; // fin du boulevard : retour à droite
         // doubler le camion en panne quand la voie d'en face est libre
         const bk = this.items.find((o) => o.broken && o.s - it.s > 0 && o.s - it.s < 45);
         if (bk) it.tx = -1.9; else if (it.tx === -1.9 && !this.items.some((o) => o.broken && Math.abs(o.s - it.s) < 14)) it.tx = it.baseX;
@@ -202,6 +210,11 @@ export class Traffic {
           const d = cp.s - it.s;
           if (d > -3 && d < 45) desired = Math.min(desired, 4.5);
         }
+        // feux : arrêt au rouge et à l'orange
+        for (const l of r.lights) {
+          const d = l.s - 3 - it.len / 2 - it.s;
+          if (d > -1 && d < 60 && r.lightState(l, this.time) > 0 && !(r.lightState(l, this.time) === 1 && d < 6)) desired = Math.min(desired, Math.max(0, d * 0.45));
+        }
         // péage : arrêt au guichet puis passage
         for (const t of r.tolls) {
           const d = t.s - 1.4 - it.len / 2 - it.s;
@@ -219,8 +232,19 @@ export class Traffic {
       } else {
         // en face : se serre et klaxonne si le joueur est sur sa voie
         for (const t of r.tolls) { const dt2 = it.s - t.s; if (dt2 > -4 && dt2 < 40) it.v = Math.max(it.v, -Math.max(2.5, dt2 * 0.35)); else if (dt2 < -4 && dt2 > -30) it.v = Math.max(it.baseV, it.v - 4 * dt); }
+        // changement de chaussée à l'entrée et à la sortie du boulevard
+        const dz = r.isDual(it.s);
+        if (dz && !it.dualLane) { it.dualLane = true; it.baseX = it.tx = it.type === 'moto' ? -13.4 : -8.3; }
+        else if (!dz && it.dualLane) { it.dualLane = false; it.baseX = it.tx = it.type === 'moto' ? -4.8 : -1.9; }
+        let held = false;
+        for (const l of r.lights) {
+          const dl = it.s - (l.s + 3) - it.len / 2;
+          if (dl > -1 && dl < 60 && r.lightState(l, this.time) > 0) { it.v = Math.max(it.v, -Math.max(0, dl * 0.45)); held = true; }
+        }
+        if (!held && it.v > it.baseV && !r.tolls.some((t) => Math.abs(it.s - t.s) < 40)) it.v = Math.max(it.baseV, it.v - 4 * dt);
         const d = it.s - P.s;
-        if (P.x < 0.6 && d > 0 && d < 95 && it.type !== 'moto') {
+        if (it.dualLane) { /* chaussée d'en face séparée par le terre-plein */ }
+        else if (P.x < 0.6 && d > 0 && d < 95 && it.type !== 'moto') {
           it.tx = -3.5;
           if (!it.dodged) { it.dodged = true; this.events.push('oncomingHorn'); }
         } else if (d < 0) it.tx = it.baseX;
@@ -238,7 +262,7 @@ export class Traffic {
     const hits = [];
     for (const it of this.items) {
       if (it.cd > 0) continue;
-      const ds = it.s - P.s, dx = it.x - P.x;
+      const ds = it.s - P.s, dx = (it.rx ?? it.x) - P.x;
       if (Math.abs(ds) < (it.len + (P.len || 4.5)) / 2 && Math.abs(dx) < (it.wid + (P.wid || 1.75)) / 2) {
         it.cd = 1.6;
         hits.push(it);

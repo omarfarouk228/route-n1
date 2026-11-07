@@ -21,29 +21,29 @@ const town = (name, i, shift = 0) => ({ t: +(tOf(name, i) + shift).toFixed(3), n
 export const STAGES = [
   {
     km: stageKm(0), length: Math.round(2200 * LEN_SCALE), rain: 0.15, harmattan: 0,
-    zones: [{ until: 0.3, biome: 'urbain' }, { until: 1, biome: 'cote' }],
-    towns: [town('Davié', 0)], rivers: [],
+    zones: [{ until: 0.6, biome: 'urbain' }, { until: 1, biome: 'cote' }],
+    towns: [town('Davié', 0)], rivers: [{ t: 0.47, name: 'Zio' }],
   },
   {
     km: stageKm(1), length: Math.round(3000 * LEN_SCALE), rain: 0.3, harmattan: 0,
     zones: [{ until: 0.55, biome: 'plaine' }, { until: 1, biome: 'plateaux' }],
-    towns: [town('Notsé', 1)], rivers: [{ t: 0.4, name: 'Haho' }],
+    towns: [town('Notsé', 1)], rivers: [{ t: 0.4, name: 'Haho' }, { t: 0.84, name: 'Amou' }],
   },
   {
     km: stageKm(2), length: Math.round(3200 * LEN_SCALE), rain: 0.35, harmattan: 0,
     zones: [{ until: 0.42, biome: 'plateaux' }, { until: 1, biome: 'centre' }],
-    towns: [town('Blitta', 2)], rivers: [{ t: 0.24, name: null }],
+    towns: [town('Blitta', 2)], rivers: [{ t: 0.15, name: 'Anié' }],
   },
   {
     km: stageKm(3), length: Math.round(2700 * LEN_SCALE), rain: 0.2, harmattan: 0.1,
-    zones: [{ until: 0.46, biome: 'centre' }, { until: 0.63, biome: 'faille' }, { until: 1, biome: 'kabye' }],
-    // Alédjo est juste au pied de la faille : on le place à l'entrée de la montée
-    towns: [{ t: 0.4, name: 'Alédjo' }, town('Bafilo', 3)], landmark: "Faille d'Alédjo", rivers: [],
+    zones: [{ until: 0.43, biome: 'centre' }, { until: 0.55, biome: 'faille' }, { until: 1, biome: 'kabye' }],
+    // OSM : péage d'Alédjo, lacets, tranchée de la faille, puis le village d'Alédjo juste après
+    towns: [{ t: 0.58, name: 'Alédjo' }, town('Bafilo', 3)], landmark: "Faille d'Alédjo", rivers: [{ t: 0.33, name: 'Mô' }, { t: 0.95, name: 'Kara' }],
   },
   {
     km: stageKm(4), length: Math.round(3000 * LEN_SCALE), rain: 0.05, harmattan: 0.35,
     zones: [{ until: 0.22, biome: 'kabye' }, { until: 1, biome: 'savane' }],
-    towns: [town('Kantè', 4)], rivers: [{ t: 0.93, name: 'Oti' }],
+    towns: [town('Kantè', 4)], rivers: [{ t: 0.78, name: 'Koumongou' }, { t: 0.93, name: 'Oti' }],
   },
   {
     km: stageKm(5), length: Math.round(2400 * LEN_SCALE), rain: 0, harmattan: 0.6,
