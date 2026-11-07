@@ -81,7 +81,7 @@ Chaque ville suit un plan relevé sur OpenStreetMap (novembre 2026) et dans la p
 
 ## Le trajet
 
-Le trajet réel fait 618 km (mesuré sur OpenStreetMap) ; il est **compressé** à environ 41 km de route jouable (5 à 8 km par étape). L'horloge du jeu suit les kilomètres réels parcourus, à environ 60 km/h de moyenne comme un vrai taxi-brousse : Lomé → Dapaong prend une douzaine d'heures de jeu, arrêts compris. Les bornes kilométriques et le HUD affichent les distances réelles. Les paysages changent du sud au nord : côte et cocotiers, plaine, plateaux, faille d'Alédjo (paroi rocheuse, lacets, ligne continue), savane avec baobabs et termitières, Sahel dans l'harmattan.
+Le trajet réel fait 613 km (mesuré sur OpenStreetMap, de la gare d'Agbalépédo à Dapaong) ; il est **compressé** à environ 41 km de route jouable (5 à 8 km par étape). L'horloge du jeu suit les kilomètres réels parcourus, à environ 60 km/h de moyenne comme un vrai taxi-brousse : Lomé → Dapaong prend une douzaine d'heures de jeu, arrêts compris. Les bornes kilométriques et le HUD affichent les distances réelles. Les paysages changent du sud au nord : côte et cocotiers, plaine, plateaux, faille d'Alédjo (paroi rocheuse, lacets, ligne continue), savane avec baobabs et termitières, Sahel dans l'harmattan.
 
 ## Technique
 

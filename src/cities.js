@@ -6,17 +6,20 @@
 // Les positions sont relatives (l'ordre et le côté sont sourcés ; les distances sont compressées comme le reste du trajet).
 export const CITY_PLANS = {
   'Lomé': {
-    span: 'toll', // de la gare jusqu'au péage de Davié
-    dual: [[-0.05, 1.02]], // boulevard Gnassingbé Eyadéma en 2x2 voies avec terre-plein
-    lights: [0.035, 0.07, 0.13, 0.32], // feux : GTA, 6,208, Agoè-Nyivé, Agoè Zongo
+    span: 'toll', // de la gare d'Agbalépédo jusqu'au péage de Davié
+    // la gare est dans une rue de quartier, à 850 m à l'ouest du boulevard ; au carrefour GTA on tourne à gauche (voir road.js, GTA)
+    dual: [[0.05, 1.02]], // boulevard Gnassingbé Eyadéma en 2x2 voies avec terre-plein
+    lights: [0.031, 0.078, 0.15, 0.335], // feux : carrefour GTA, 6,208, Agoè-Nyivé, Agoè Zongo
     urban: [[-0.05, 0.62]], dense: 1.45, style: 'ville',
     lamps: true, gutters: true,
     marks: [
-      { at: 0.015, side: 'G', kind: 'station', brand: 'TOTAL', label: 'Lomé 2' },
-      { at: 0.04, side: 'G', kind: 'station', brand: 'MRS' },
-      { at: 0.06, side: 'G', kind: 'gare', label: 'CTK KANTAGUIBA' },
-      { at: 0.08, side: 'G', kind: 'station', brand: 'TOTAL' },
+      { at: 0.008, side: 'G', kind: 'station', brand: 'TOTAL', label: 'Agbalépédogan' },
+      { at: 0.022, side: 'D', kind: 'market', label: 'MARCHÉ D’AGBALÉPÉDOGAN', small: true },
+      { at: 0.058, side: 'G', kind: 'station', brand: 'MRS' },
+      { at: 0.066, side: 'G', kind: 'gare', label: 'CTK KANTAGUIBA' },
+      { at: 0.085, side: 'G', kind: 'station', brand: 'TOTAL' },
       { at: 0.095, side: 'G', kind: 'gare', label: 'LK LOMÉ-KARA', d: 6 },
+      { at: 0.1, side: 'G', kind: 'station', brand: 'MRS' },
       { at: 0.105, side: 'D', kind: 'station', brand: 'TOTAL', label: 'Agoè' },
       { at: 0.115, side: 'D', kind: 'gare', label: 'ZAM ZAM' },
       { at: 0.125, side: 'D', kind: 'station', brand: 'T-OIL' },

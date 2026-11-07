@@ -66,11 +66,12 @@ export function drawFullMap(canvas, { w, h, stage = 0, progress = 0, rev = false
   line(0, ROUTE_XY.length - 1, dark ? '#0b0d0b' : '#5a4a32', 4.5);
   line(0, ROUTE_XY.length - 1, C.road, 2.2);
   const fi = routeIndex(stage, progress);
+  const i0 = PLACES[STAGE_CITIES[0]].i; // départ : gare d'Agbalépédo
   if (rev) {
     // retour : l'aller est fait (jaune), la portion du retour déjà roulée est en vert
-    line(0, ROUTE_XY.length - 1, C.ink, 5); line(0, ROUTE_XY.length - 1, C.done, 3);
+    line(i0, ROUTE_XY.length - 1, C.ink, 5); line(i0, ROUTE_XY.length - 1, C.done, 3);
     if (fi < ROUTE_XY.length - 1) line(Math.floor(fi), ROUTE_XY.length - 1, '#3fd38a', 3);
-  } else if (fi > 0) { line(0, Math.floor(fi), C.ink, 5); line(0, Math.floor(fi), C.done, 3); }
+  } else if (fi > i0) { line(i0, Math.floor(fi), C.ink, 5); line(i0, Math.floor(fi), C.done, 3); }
   // villes
   g.textAlign = 'left';
   for (const name of TOWNS) {

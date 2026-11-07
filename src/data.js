@@ -22,7 +22,7 @@ export const STAGES = [
   {
     km: stageKm(0), length: Math.round(2200 * LEN_SCALE), rain: 0.15, harmattan: 0,
     zones: [{ until: 0.6, biome: 'urbain' }, { until: 1, biome: 'cote' }],
-    towns: [town('Davié', 0)], rivers: [{ t: 0.47, name: 'Zio' }],
+    towns: [town('Davié', 0)], rivers: [{ t: 0.455, name: 'Zio' }],
   },
   {
     km: stageKm(1), length: Math.round(3000 * LEN_SCALE), rain: 0.3, harmattan: 0,

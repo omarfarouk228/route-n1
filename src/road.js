@@ -10,6 +10,7 @@ export const DS = 2; // pas d'échantillonnage de l'axe (m)
 export const HALF_ROAD = 4; // demi-largeur du goudron
 export const SHOULDER = 7.2; // bord extérieur des accotements en latérite
 const S0 = -90; // la route commence un peu derrière la gare
+const GTA = [150, 210]; // virage du carrefour GTA (m de jeu depuis la gare d'Agbalépédo)
 const EXTRA = 220; // et se prolonge dans la ville d'arrivée
 
 const TERRAIN_OFFS = [7.2, 8.6, 10.5, 13.5, 17, 21, 26, 32, 40, 50, 62, 78, 100, 128, 160];
@@ -44,6 +45,11 @@ export class Road {
     this.fromCity = CITIES[stage.from ?? stageIndex];
     this.toCity = CITIES[stage.to ?? stageIndex + 1];
     this.weather = opts.weather || 'clear';
+    // Lomé : la gare d'Agbalépédo est dans une rue de quartier ; au carrefour GTA on prend le boulevard (à gauche vers le nord)
+    this.lomeStart = this.fromCity.name === 'Lomé';
+    this.lomeEnd = this.toCity.name === 'Lomé';
+    this.straightA = this.lomeStart ? 240 : 120;
+    this.straightB = this.lomeEnd ? 250 : 160;
     this.length = stage.length;
     this.rng = mulberry32(seed);
     this.n = Math.ceil((this.length + EXTRA - S0) / DS) + 1;
@@ -56,6 +62,14 @@ export class Road {
     this.features();
   }
 
+  // rue d'Agbalépédo (avant le virage) et virage de 90° au carrefour GTA
+  lomeStreet(s) { return (this.lomeStart && s < GTA[1]) || (this.lomeEnd && s > this.length - GTA[1]); }
+  gtaTurn(s) {
+    const k = Math.PI / 2 / (GTA[1] - GTA[0]);
+    if (this.lomeStart && s > GTA[0] && s < GTA[1]) return k; // à gauche
+    if (this.lomeEnd && s > this.length - GTA[1] && s < this.length - GTA[0]) return -k; // à droite vers la gare
+    return 0;
+  }
   idx(s) { return clamp((s - S0) / DS, 0, this.n - 1.001); }
   sAt(i) { return S0 + i * DS; }
 
@@ -108,7 +122,7 @@ export class Road {
           gT = (rng() * 2 - 1) * B.hill * 0.004;
         }
       }
-      if (s < 120 || s > this.length - 160) { kT = 0; gT = 0; }
+      if (s < this.straightA || s > this.length - this.straightB) { kT = 0; gT = 0; }
       if (this.rivers.some((r) => Math.abs(r.s - s) < 140)) { kT = 0; gT = 0; }
       segLeft -= DS;
       kCur += (kT - kCur) * Math.min(1, DS / 30);
@@ -117,7 +131,7 @@ export class Road {
       const tt = clamp(s / this.length, 0, 1), tt1 = clamp((s + DS) / this.length, 0, 1);
       const fi0 = routeIndex(this.geo, this.rev ? 1 - tt : tt), fi1 = routeIndex(this.geo, this.rev ? 1 - tt1 : tt1);
       const kReal = s < 0 || s > this.length ? 0 : clamp(-(realHeading(fi1) - realHeading(fi0)) / DS, -0.008, 0.008);
-      const kTot = (B.cliff ? kCur : kCur * 0.55) + kReal;
+      const kTot = (B.cliff ? kCur : kCur * 0.55) + (this.lomeStreet(s) ? 0 : kReal) + this.gtaTurn(s);
       this.px[i] = x; this.py[i] = y; this.pz[i] = z; this.h[i] = head; this.k[i] = kTot; this.grade[i] = gCur;
       head += kTot * DS;
       x += Math.sin(head) * DS;
@@ -371,7 +385,9 @@ export class Road {
     for (const f of this.floods) this.notes.push({ s: f.s - f.len / 2 - 160, text: 'Route inondée après l’averse : traverse au pas', kind: 'warn' });
     for (const l of this.lights) this.notes.push({ s: l.s - 150, text: 'Feux tricolores : arrête-toi au rouge', kind: 'info', soft: true });
     for (const i of this.islands) this.notes.push({ s: i.s - 140, text: 'Rond-point : contourne le terre-plein par la droite', kind: 'info' });
-    if (this.dual.length && this.dual[0][0] < 40) this.notes.push({ s: 30, text: 'Boulevard à 2x2 voies : la voie de gauche sert à doubler', kind: 'info' });
+    for (const [a] of this.dual) if (a > -40 && a < L - 100) this.notes.push({ s: Math.max(20, a - 50), text: 'Boulevard à 2x2 voies : la voie de gauche sert à doubler', kind: 'info' });
+    if (this.lomeStart) this.notes.push({ s: 40, text: 'Carrefour GTA : prends à gauche le boulevard vers Agoè', kind: 'info' });
+    if (this.lomeEnd) this.notes.push({ s: L - 330, text: 'Carrefour GTA : à droite vers la gare d’Agbalépédo', kind: 'info' });
     for (const r of this.rivers) if (r.name) this.notes.push({ s: r.s - 90, text: `Pont sur le ${r.name}`, kind: 'town' });
     for (const v of this.villages) if (!v.named) this.notes.push({ s: v.s - span(v) - 60, text: 'Village : ralentisseurs, enfants et animaux', kind: 'info', soft: true });
     this.notes.sort((a, b) => a.s - b.s);

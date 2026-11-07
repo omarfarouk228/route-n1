@@ -7,6 +7,9 @@ export const PTS = route.pts; // [lat, lon] tous les `route.step` mètres, de Lo
 export const STEP = route.step;
 export const OUTLINE = outline;
 export const PLACES = Object.fromEntries(route.places.map((p) => [p.name, p]));
+// Départ réel des taxis-brousse : gare routière d'Agbalépédo, au rond-point GTA (6,194 N).
+// Le tracé OSM commence 5,5 km plus au sud (Tokoin) ; on place Lomé sur le boulevard à la hauteur de la gare.
+PLACES['Lomé'] = { ...PLACES['Lomé'], i: 22, km: 5.5 };
 
 const LAT0 = 8.5, LON0 = 0.9;
 const KX = 111.32 * Math.cos((LAT0 * Math.PI) / 180), KY = 110.57;
