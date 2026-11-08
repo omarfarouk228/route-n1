@@ -1173,7 +1173,7 @@ function toggleSound() {
 document.getElementById('b-sound').classList.toggle('off', sound.muted);
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); radio.background(document.hidden); });
 // pause automatique quand on quitte la fenêtre
-addEventListener('blur', () => setTimeout(() => { if (state === 'drive' && !paused && !document.hasFocus()) setPause(true); }, 0));
+addEventListener('blur', () => setTimeout(() => { if (state === 'drive' && !paused && !manualClock && !document.hasFocus()) setPause(true); }, 0));
 
 /* ------------------------------------------------------------ caméra et visuels */
 const fw = new THREE.Vector3();
@@ -1224,7 +1224,8 @@ function updateCamera(dt) {
     lookT.set(...sceneCam.look); taxi.group.localToWorld(lookT);
     camLook.lerp(lookT, 1 - Math.exp(-dt * 3));
     camera.lookAt(camLook);
-    if (Math.abs(camera.fov - 50) > 0.05) { camera.fov += (50 - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
+    const sf = camera.aspect < 0.9 ? 74 : 50; // écran vertical : angle plus large
+    if (Math.abs(camera.fov - sf) > 0.05) { camera.fov += (sf - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
   } else if (state === 'drive' || state === 'rescue') {
     const portrait = camera.aspect < 0.9;
     let back = portrait ? 10.5 : 8.2, up = portrait ? 4.2 : 3.3, ahead = 10, k = 5;
@@ -1329,9 +1330,11 @@ function hudData() {
 /* ------------------------------------------------------------ boucle principale */
 let last = performance.now();
 let freeCam = false;
-function frame(now) {
-  requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+let manualClock = false; // débogage : rendu image par image à pas fixe (vidéos de démo)
+function frame(now, fromStep = false) {
+  if (manualClock && !fromStep) return; // rendu pas à pas : on ignore la boucle normale
+  if (!manualClock) requestAnimationFrame(frame);
+  const dt = clamp((now - last) / 1000, 0, 0.05);
   last = now;
   lastDt = dt;
   clock += dt;
@@ -1382,6 +1385,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 }
 
 // accès de débogage pour les tests manuels
-window.__n1 = { set freeCam(v) { freeCam = v; }, fixSize: (v) => { fixedSize = v; if (!v) renderer.setPixelRatio(pixelRatio); resize(); }, sound, set camMode(v) { camMode = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
+window.__n1 = { get taxi() { return taxi; }, set freeCam(v) { freeCam = v; }, fixSize: (v) => { fixedSize = v; if (!v) renderer.setPixelRatio(pixelRatio); resize(); },
+  manual: (on) => { if (on === manualClock) return; manualClock = on; if (!on) { last = performance.now(); requestAnimationFrame(frame); } },
+  step: (dt) => frame(last + dt * 1000, true), sound, set camMode(v) { camMode = v; }, get pixelRatio() { return pixelRatio; }, get run() { return run; }, get world() { return world; }, player, input, get state() { return state; }, setHour: (h) => { run.hour = h; }, renderer, camera,
   goto: (i, weather, dir = 1) => { run.dir = dir; run.stage = i; run.reached = cityAt(dir, i); run.legs = i + (dir < 0 ? LEGS : 0); if (weather) run.weathers[i] = weather; openGare(); },
   get career() { return career; }, startReturn: () => startReturn(), heat: (v) => { world.heat = v; }, flat: () => startFlat() };
